@@ -1,7 +1,7 @@
 """
-图像分类预测器类模块
+Image classification predictor class module.
 
-封装预测逻辑，管理模型生命周期。
+Encapsulates prediction logic and manages model lifecycle.
 """
 
 from typing import List, Dict, Any
@@ -10,17 +10,17 @@ from .inference import load_model, predict_single_image, predict_batch
 
 class Predictor:
     """
-    图像分类预测器
+    Image classification predictor.
     
-    封装模型加载和预测功能，提供简洁的预测接口。
+    Encapsulates model loading and prediction, provides simple interface.
     
     Attributes:
-        model_name: 模型名称
-        weights_path: 权重文件路径
-        class_names: 类别名称列表
-        model: Keras模型对象
+        model_name: Model name
+        weights_path: Path to weights file
+        class_names: List of class names
+        model: Keras model object
     
-    使用示例:
+    Example:
         >>> predictor = Predictor("VGG16", "weights/vgg16.h5", class_names)
         >>> result = predictor.predict("test.jpg")
         >>> print(result['predicted_class'])
@@ -28,36 +28,36 @@ class Predictor:
     
     def __init__(self, model_name: str, weights_path: str, class_names: List[str]):
         """
-        初始化预测器
+        Initialize predictor.
         
         Args:
-            model_name: 模型名称 (VGG16/ResNet50/MobileNetV2)
-            weights_path: 模型权重文件路径
-            class_names: 类别名称列表
+            model_name: Model name (VGG16/ResNet50/MobileNetV2)
+            weights_path: Path to model weights file
+            class_names: List of class names
         """
         self.model_name = model_name
         self.weights_path = weights_path
         self.class_names = class_names
         
-        # 加载模型
-        print(f"[预测器] 正在加载 {model_name}...")
+        # Load model
+        print(f"[Predictor] Loading {model_name}...")
         try:
             self.model = load_model(model_name, weights_path)
-            print(f"[预测器] 模型加载成功!")
+            print(f"[Predictor] Model loaded successfully!")
         except Exception as e:
-            print(f"[预测器] 加载失败: {e}")
+            print(f"[Predictor] Loading failed: {e}")
             raise
     
     def predict(self, image_path: str, top_k: int = 3) -> Dict[str, Any]:
         """
-        预测单张图像
+        Predict single image.
         
         Args:
-            image_path: 图像文件路径
-            top_k: 返回前K个预测结果，默认3
+            image_path: Path to image file
+            top_k: Return top K predictions, default 3
         
         Returns:
-            预测结果字典
+            Prediction result dictionary
         """
         return predict_single_image(
             model=self.model,
@@ -68,13 +68,13 @@ class Predictor:
     
     def batch_predict(self, image_paths: List[str]) -> List[Dict[str, Any]]:
         """
-        批量预测多张图像
+        Batch predict multiple images.
         
         Args:
-            image_paths: 图像路径列表
+            image_paths: List of image paths
         
         Returns:
-            预测结果列表
+            List of prediction results
         """
         return predict_batch(
             model=self.model,
@@ -84,10 +84,10 @@ class Predictor:
     
     def get_model_info(self) -> Dict[str, Any]:
         """
-        获取模型信息
+        Get model information.
         
         Returns:
-            模型信息字典
+            Model information dictionary
         """
         total_params = self.model.count_params()
         trainable_params = sum([
@@ -107,13 +107,13 @@ class Predictor:
         }
     
     def __del__(self):
-        """清理资源"""
+        """Clean up resources."""
         if hasattr(self, 'model'):
             del self.model
-            print(f"[预测器] {self.model_name} 已清理")
+            print(f"[Predictor] {self.model_name} cleaned up")
     
     def __repr__(self) -> str:
-        """字符串表示"""
+        """String representation."""
         return (
             f"{self.__class__.__name__}("
             f"model='{self.model_name}', "
@@ -122,13 +122,13 @@ class Predictor:
         )
 
 
-# 模块测试
+# Module test
 if __name__ == "__main__":
     print("=" * 50)
-    print("预测器模块测试")
+    print("Predictor Module Test")
     print("=" * 50)
-    print("\n✓ Predictor类加载成功!")
-    print("\n可用方法:")
+    print("\n✓ Predictor class loaded successfully!")
+    print("\nAvailable methods:")
     print("  - __init__(model_name, weights_path, class_names)")
     print("  - predict(image_path, top_k=3)")
     print("  - batch_predict(image_paths)")
