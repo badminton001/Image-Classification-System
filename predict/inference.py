@@ -16,11 +16,24 @@ Reference: Image Classification Enhancement System Project Guide
 """
 
 import os
+import logging
 import numpy as np
 from PIL import Image
 from typing import List, Dict, Tuple, Any, Optional
 import tensorflow as tf
 from tensorflow import keras
+
+# Import configuration and utilities
+from .config import (
+    DEFAULT_IMAGE_SIZE,
+    SUPPORTED_MODELS,
+    DEFAULT_TOP_K,
+    VALIDATE_INPUT
+)
+from .utils import validate_image_path, validate_image_size
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 # Optional: tqdm for progress bars
 try:
@@ -28,6 +41,7 @@ try:
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
+    logger.info("tqdm not available. Progress bars will be disabled.")
 
 
 def load_model(model_name: str, weights_path: str) -> keras.Model:
@@ -63,11 +77,16 @@ def load_model(model_name: str, weights_path: str) -> keras.Model:
             f"Please ensure the model has been trained and saved."
         )
     
+    # Validate model name
+    if model_name not in SUPPORTED_MODELS:
+        logger.warning(f"Model {model_name} not in supported list: {SUPPORTED_MODELS}")
+    
     try:
         # Load model from HDF5 file
         # Reference: TensorFlow documentation on model serialization
+        logger.info(f"Loading model: {model_name} from {weights_path}")
         model = keras.models.load_model(weights_path)
-        print(f"✓ Successfully loaded {model_name} from {weights_path}")
+        logger.info(f"✓ Successfully loaded {model_name}")
         return model
         
     except Exception as e:
@@ -77,7 +96,7 @@ def load_model(model_name: str, weights_path: str) -> keras.Model:
         )
 
 
-def preprocess_input_image(image_path: str, target_size: Tuple[int, int] = (224, 224)) -> np.ndarray:
+def preprocess_input_image(image_path: str, target_size: Tuple[int, int] = DEFAULT_IMAGE_SIZE) -> np.ndarray:
     """
     Preprocess a single image for model prediction.
     
@@ -110,9 +129,14 @@ def preprocess_input_image(image_path: str, target_size: Tuple[int, int] = (224,
         PIL Image Processing: https://pillow.readthedocs.io/en/stable/
         NumPy expand_dims: https://numpy.org/doc/stable/reference/generated/numpy.expand_dims.html
     """
-    # Validate image file exists
-    if not os.path.exists(image_path):
+    # Validate image file
+    if VALIDATE_INPUT:
+        validate_image_path(image_path)
+        validate_image_size(image_path)
+    elif not os.path.exists(image_path):
         raise FileNotFoundError(f"Image file not found: {image_path}")
+    
+    logger.debug(f"Preprocessing image: {image_path}")
     
     try:
         # 1. Load image using PIL and convert to RGB
@@ -264,6 +288,7 @@ def predict_batch(
             
         except Exception as e:
             # Log error but continue processing other images
+            logger.error(f"Error processing {image_path}: {e}", exc_info=True)
             print(f"\n⚠️  Error processing {image_path}: {e}")
             # Add placeholder result for failed image
             results.append({
@@ -281,6 +306,7 @@ def predict_batch(
     if not TQDM_AVAILABLE:
         print(f"✓ Completed: {len(results)} images processed")
     
+    logger.info(f"Batch prediction completed: {len(results)} images processed")
     return results
 
 

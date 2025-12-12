@@ -14,12 +14,17 @@ Author: Member 4 - Prediction & Inference Team
 Reference: Image Classification Enhancement System Project Guide
 """
 
+import logging
 from typing import List, Dict, Any
 from .inference import (
     load_model,
     predict_single_image,
     predict_batch
 )
+from .config import DEFAULT_TOP_K
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 
 class Predictor:
@@ -101,12 +106,12 @@ class Predictor:
         self.class_names = class_names
         
         # Load the model
-        print(f"[Predictor] Loading {model_name}...")
+        logger.info(f"[Predictor] Initializing with model: {model_name}")
         try:
             self.model = load_model(model_name, weights_path)
-            print(f"[Predictor] Model loaded successfully!")
+            logger.info(f"[Predictor] Model loaded successfully!")
         except Exception as e:
-            print(f"[Predictor] Error loading model: {e}")
+            logger.error(f"[Predictor] Error loading model: {e}")
             raise
     
     def predict(
@@ -254,7 +259,7 @@ class Predictor:
         if hasattr(self, 'model'):
             # Delete model to free memory
             del self.model
-            print(f"[Predictor] {self.model_name} cleaned up.")
+            logger.info(f"[Predictor] {self.model_name} cleaned up.")
     
     def __repr__(self) -> str:
         """
