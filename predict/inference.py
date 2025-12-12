@@ -1,168 +1,77 @@
 """
-Inference module for image classification prediction.
+图像分类预测推理模块
 
-This module provides functions for loading trained models, preprocessing images,
-and making predictions using pre-trained models (VGG16, ResNet50, MobileNetV2).
-
-Functions:
-    - load_model: Load a trained Keras model from weights file
-    - preprocess_input_image: Preprocess single image for prediction
-    - predict_single_image: Predict single image and return top-k results
-    - predict_batch: Batch prediction for multiple images
-    - format_predictions: Format prediction results as readable string
-
-Author: Member 4 - Prediction & Inference Team
-Reference: Image Classification Enhancement System Project Guide
+提供模型加载、图像预处理、单/批量预测和结果格式化功能。
 """
 
 import os
-import logging
 import numpy as np
 from PIL import Image
-from typing import List, Dict, Tuple, Any, Optional
-import tensorflow as tf
+from typing import List, Dict, Tuple, Any
 from tensorflow import keras
 
-# Import configuration and utilities
-from .config import (
-    DEFAULT_IMAGE_SIZE,
-    SUPPORTED_MODELS,
-    DEFAULT_TOP_K,
-    VALIDATE_INPUT
-)
-from .utils import validate_image_path, validate_image_size
-
-# Setup logger
-logger = logging.getLogger(__name__)
-
-# Optional: tqdm for progress bars
+# 可选进度条
 try:
     from tqdm import tqdm
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
-    logger.info("tqdm not available. Progress bars will be disabled.")
 
 
 def load_model(model_name: str, weights_path: str) -> keras.Model:
     """
-    Load a trained Keras model from weights file.
-    
-    This function loads a pre-trained model (VGG16, ResNet50, or MobileNetV2)
-    with custom classification layers from a saved .h5 weights file.
+    加载训练好的Keras模型
     
     Args:
-        model_name (str): Name of the model ('VGG16', 'ResNet50', 'MobileNetV2')
-        weights_path (str): Path to the model weights file (.h5 format)
-        
+        model_name: 模型名称 (VGG16/ResNet50/MobileNetV2)
+        weights_path: 模型权重文件路径 (.h5格式)
+    
     Returns:
-        keras.Model: Loaded Keras model ready for prediction
-        
-    Raises:
-        FileNotFoundError: If weights file doesn't exist
-        Exception: If model loading fails
-        
-    Example:
-        >>> model = load_model('VGG16', 'weights/vgg16_best_model.h5')
-        >>> print(type(model))
-        <class 'tensorflow.python.keras.engine.sequential.Sequential'>
-        
-    Reference:
-        https://www.tensorflow.org/api_docs/python/tf/keras/models/load_model
+        加载的Keras模型
     """
-    # Validate weights file exists
     if not os.path.exists(weights_path):
-        raise FileNotFoundError(
-            f"Weights file not found: {weights_path}\n"
-            f"Please ensure the model has been trained and saved."
-        )
-    
-    # Validate model name
-    if model_name not in SUPPORTED_MODELS:
-        logger.warning(f"Model {model_name} not in supported list: {SUPPORTED_MODELS}")
+        raise FileNotFoundError(f"权重文件不存在: {weights_path}")
     
     try:
-        # Load model from HDF5 file
-        # Reference: TensorFlow documentation on model serialization
-        logger.info(f"Loading model: {model_name} from {weights_path}")
         model = keras.models.load_model(weights_path)
-        logger.info(f"✓ Successfully loaded {model_name}")
+        print(f"✓ 成功加载 {model_name} 模型")
         return model
-        
     except Exception as e:
-        raise Exception(
-            f"Failed to load model {model_name}: {str(e)}\n"
-            f"Ensure the weights file is a valid Keras model (.h5 format)"
-        )
+        raise Exception(f"模型加载失败: {str(e)}")
 
 
-def preprocess_input_image(image_path: str, target_size: Tuple[int, int] = DEFAULT_IMAGE_SIZE) -> np.ndarray:
+def preprocess_input_image(image_path: str, target_size: Tuple[int, int] = (224, 224)) -> np.ndarray:
     """
-    Preprocess a single image for model prediction.
+    预处理单张图像
     
-    Processing pipeline:
-    1. Load image using PIL
-    2. Resize to target size (224x224 for VGG16/ResNet50/MobileNetV2)
-    3. Convert to numpy array
-    4. Normalize pixel values to [0, 1] range
-    5. Add batch dimension (1, height, width, channels)
+    处理流程：加载图像 → 调整大小 → 归一化 → 添加batch维度
     
     Args:
-        image_path (str): Path to the image file (JPG, PNG, etc.)
-        target_size (Tuple[int, int]): Target image size (height, width), default (224, 224)
-        
-    Returns:
-        np.ndarray: Preprocessed image array with shape (1, 224, 224, 3)
-        
-    Raises:
-        FileNotFoundError: If image file doesn't exist
-        Exception: If image processing fails
-        
-    Example:
-        >>> img_array = preprocess_input_image('test.jpg')
-        >>> print(img_array.shape)
-        (1, 224, 224, 3)
-        >>> print(img_array.min(), img_array.max())
-        0.0 1.0
-        
-    Reference:
-        PIL Image Processing: https://pillow.readthedocs.io/en/stable/
-        NumPy expand_dims: https://numpy.org/doc/stable/reference/generated/numpy.expand_dims.html
-    """
-    # Validate image file
-    if VALIDATE_INPUT:
-        validate_image_path(image_path)
-        validate_image_size(image_path)
-    elif not os.path.exists(image_path):
-        raise FileNotFoundError(f"Image file not found: {image_path}")
+        image_path: 图像文件路径
+        target_size: 目标尺寸，默认(224, 224)
     
-    logger.debug(f"Preprocessing image: {image_path}")
+    Returns:
+        预处理后的图像数组，形状为(1, 224, 224, 3)
+    """
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"图像文件不存在: {image_path}")
     
     try:
-        # 1. Load image using PIL and convert to RGB
-        # Reference: PIL documentation on image modes
+        # 加载并转换为RGB
         img = Image.open(image_path).convert('RGB')
         
-        # 2. Resize image to target size using LANCZOS resampling
-        # LANCZOS provides high-quality downsampling
-        # Reference: https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.resize
+        # 调整大小
         img = img.resize(target_size, Image.LANCZOS)
         
-        # 3. Convert PIL Image to numpy array
-        img_array = np.array(img)
+        # 转换为数组并归一化
+        img_array = np.array(img, dtype='float32') / 255.0
         
-        # 4. Normalize pixel values from [0, 255] to [0, 1]
-        # This matches the preprocessing used during training
-        img_array = img_array.astype('float32') / 255.0
-        
-        # 5. Add batch dimension: (224, 224, 3) -> (1, 224, 224, 3)
-        # Models expect input shape (batch_size, height, width, channels)
+        # 添加batch维度
         img_array = np.expand_dims(img_array, axis=0)
         
         return img_array
-        
     except Exception as e:
-        raise Exception(f"Error preprocessing image {image_path}: {str(e)}")
+        raise Exception(f"图像预处理失败: {str(e)}")
 
 
 def predict_single_image(
@@ -172,72 +81,37 @@ def predict_single_image(
     top_k: int = 3
 ) -> Dict[str, Any]:
     """
-    Predict the class of a single image and return top-k results.
-    
-    This function performs the following steps:
-    1. Preprocess the input image
-    2. Run model prediction to get class probabilities
-    3. Extract top-k predictions sorted by confidence
-    4. Format results into a structured dictionary
+    预测单张图像的类别
     
     Args:
-        model (keras.Model): Loaded Keras model
-        image_path (str): Path to the image file
-        class_names (List[str]): List of class names (e.g., ['buildings', 'forest', ...])
-        top_k (int): Number of top predictions to return, default 3
-        
+        model: Keras模型
+        image_path: 图像路径
+        class_names: 类别名称列表
+        top_k: 返回前K个预测结果
+    
     Returns:
-        Dict[str, Any]: Prediction results with the following keys:
-            - 'image_path' (str): Path to the input image
-            - 'predicted_class' (str): Top predicted class name
-            - 'confidence' (float): Confidence score [0, 1] for top prediction
-            - 'top_k_predictions' (List[Tuple[str, float]]): Top-k (class, probability) pairs
-            
-    Example:
-        >>> result = predict_single_image(model, 'forest.jpg', class_names, top_k=3)
-        >>> print(result)
-        {
-            'image_path': 'forest.jpg',
-            'predicted_class': 'forest',
-            'confidence': 0.9523,
-            'top_k_predictions': [
-                ('forest', 0.9523),
-                ('mountain', 0.0312),
-                ('glacier', 0.0105)
-            ]
-        }
-        
-    Reference:
-        NumPy argsort: https://numpy.org/doc/stable/reference/generated/numpy.argsort.html
-        Model prediction: https://www.tensorflow.org/api_docs/python/tf/keras/Model#predict
+        包含预测结果的字典：
+        - image_path: 图像路径
+        - predicted_class: 预测类别
+        - confidence: 置信度
+        - top_k_predictions: Top-K预测列表
     """
-    # Preprocess the image
+    # 预处理图像
     img_array = preprocess_input_image(image_path)
     
-    # Run model prediction
-    # verbose=0 suppresses progress bar for single prediction
-    # Output shape: (1, num_classes)
-    predictions = model.predict(img_array, verbose=0)[0]  # Get first (and only) result
+    # 模型预测
+    predictions = model.predict(img_array, verbose=0)[0]
     
-    # Get indices of top-k predictions sorted by probability (descending)
-    # argsort returns indices in ascending order, so we reverse with [::-1]
-    # Reference: https://stackoverflow.com/questions/6910641/
+    # 获取Top-K结果
     top_k_indices = np.argsort(predictions)[::-1][:top_k]
+    top_k_preds = [(class_names[i], float(predictions[i])) for i in top_k_indices]
     
-    # Create list of (class_name, probability) tuples for top-k predictions
-    top_k_preds = [
-        (class_names[i], float(predictions[i]))  # Convert np.float32 to Python float
-        for i in top_k_indices
-    ]
-    
-    # Get the top prediction (highest confidence)
-    best_class_idx = top_k_indices[0]
-    
-    # Return structured prediction results
+    # 返回结果
+    best_idx = top_k_indices[0]
     return {
         'image_path': image_path,
-        'predicted_class': class_names[best_class_idx],
-        'confidence': float(predictions[best_class_idx]),
+        'predicted_class': class_names[best_idx],
+        'confidence': float(predictions[best_idx]),
         'top_k_predictions': top_k_preds
     }
 
@@ -248,144 +122,96 @@ def predict_batch(
     class_names: List[str]
 ) -> List[Dict[str, Any]]:
     """
-    Batch prediction for multiple images.
-    
-    This function processes multiple images and returns predictions for each.
-    It uses tqdm to display a progress bar if available.
+    批量预测多张图像
     
     Args:
-        model (keras.Model): Loaded Keras model
-        image_paths (List[str]): List of image file paths
-        class_names (List[str]): List of class names
-        
+        model: Keras模型
+        image_paths: 图像路径列表
+        class_names: 类别名称列表
+    
     Returns:
-        List[Dict[str, Any]]: List of prediction dictionaries, one per image
-        
-    Example:
-        >>> paths = ['img1.jpg', 'img2.jpg', 'img3.jpg']
-        >>> results = predict_batch(model, paths, class_names)
-        >>> print(f"Processed {len(results)} images")
-        Processed 3 images
-        
-    Reference:
-        tqdm documentation: https://tqdm.github.io/
+        预测结果列表
     """
     results = []
     
-    # Create iterator with progress bar if tqdm is available
-    if TQDM_AVAILABLE:
-        iterator = tqdm(image_paths, desc="Predicting images", unit="img")
-    else:
-        iterator = image_paths
-        print(f"Processing {len(image_paths)} images...")
+    # 创建进度条
+    iterator = tqdm(image_paths, desc="预测中", unit="张") if TQDM_AVAILABLE else image_paths
+    if not TQDM_AVAILABLE:
+        print(f"正在处理 {len(image_paths)} 张图像...")
     
-    # Process each image
+    # 处理每张图像
     for i, image_path in enumerate(iterator):
         try:
-            # Predict single image with top-1 result (faster for batch)
             result = predict_single_image(model, image_path, class_names, top_k=1)
             results.append(result)
-            
         except Exception as e:
-            # Log error but continue processing other images
-            logger.error(f"Error processing {image_path}: {e}", exc_info=True)
-            print(f"\n⚠️  Error processing {image_path}: {e}")
-            # Add placeholder result for failed image
+            print(f"\n⚠️  处理失败 {image_path}: {e}")
             results.append({
                 'image_path': image_path,
                 'predicted_class': 'ERROR',
                 'confidence': 0.0,
-                'top_k_predictions': [],
                 'error': str(e)
             })
         
-        # Print progress if tqdm not available
+        # 进度提示（无tqdm时）
         if not TQDM_AVAILABLE and (i + 1) % 10 == 0:
-            print(f"  Progress: {i + 1}/{len(image_paths)} images")
+            print(f"  进度: {i + 1}/{len(image_paths)}")
     
     if not TQDM_AVAILABLE:
-        print(f"✓ Completed: {len(results)} images processed")
+        print(f"✓ 完成: {len(results)} 张图像")
     
-    logger.info(f"Batch prediction completed: {len(results)} images processed")
     return results
 
 
 def format_predictions(prediction_dict: Dict[str, Any]) -> str:
     """
-    Format prediction results as a human-readable string.
-    
-    This function takes a prediction dictionary and formats it into
-    a nicely formatted string for display to users.
+    格式化预测结果为可读字符串
     
     Args:
-        prediction_dict (Dict[str, Any]): Prediction result from predict_single_image()
-        
+        prediction_dict: 预测结果字典
+    
     Returns:
-        str: Formatted prediction result string
-        
-    Example:
-        >>> result = predict_single_image(model, 'forest.jpg', class_names)
-        >>> print(format_predictions(result))
-        ==================
-        Prediction Result
-        ==================
-        Image: forest.jpg
-        Predicted Class: forest
-        Confidence: 95.23%
-        
-        Top-3 Predictions:
-          1. forest        - 95.23%
-          2. mountain      -  3.12%
-          3. glacier       -  1.05%
+        格式化的字符串
     """
-    # Check if this is an error result
+    # 错误情况
     if 'error' in prediction_dict:
         return f"""
 ==================
-Prediction Error
+预测错误
 ==================
-Image: {prediction_dict['image_path']}
-Error: {prediction_dict['error']}
+图像: {prediction_dict['image_path']}
+错误: {prediction_dict['error']}
 """
     
-    # Format header
-    output = """
+    # 正常结果
+    output = f"""
 ==================
-Prediction Result
+预测结果
 ==================
+图像: {prediction_dict['image_path']}
+预测类别: {prediction_dict['predicted_class']}
+置信度: {prediction_dict['confidence']:.2%}
 """
     
-    # Add image path
-    output += f"Image: {prediction_dict['image_path']}\n"
-    
-    # Add top prediction
-    output += f"Predicted Class: {prediction_dict['predicted_class']}\n"
-    output += f"Confidence: {prediction_dict['confidence']:.2%}\n\n"
-    
-    # Add top-k predictions if available
+    # 添加Top-K结果
     top_k_preds = prediction_dict.get('top_k_predictions', [])
     if top_k_preds:
-        output += f"Top-{len(top_k_preds)} Predictions:\n"
-        for i, (class_name, probability) in enumerate(top_k_preds, 1):
-            # Format: "  1. forest        - 95.23%"
-            output += f"  {i}. {class_name:15s} - {probability:6.2%}\n"
+        output += f"\nTop-{len(top_k_preds)} 预测:\n"
+        for i, (class_name, prob) in enumerate(top_k_preds, 1):
+            output += f"  {i}. {class_name:15s} - {prob:6.2%}\n"
     
     return output
 
 
-# Module-level test code (can be commented out for production)
+# 模块测试
 if __name__ == "__main__":
     print("=" * 50)
-    print("Inference Module Test")
+    print("推理模块测试")
     print("=" * 50)
-    
-    # This is for testing purposes only
-    # In production, this module will be imported by other scripts
-    print("\n✓ Module loaded successfully!")
-    print("\nAvailable functions:")
+    print("\n✓ 模块加载成功!")
+    print("\n可用函数:")
     print("  - load_model()")
     print("  - preprocess_input_image()")
     print("  - predict_single_image()")
     print("  - predict_batch()")
     print("  - format_predictions()")
-    print("\nImport this module in your main script to use these functions.")
