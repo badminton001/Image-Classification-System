@@ -5,7 +5,7 @@ This project is a comprehensive Python-based system for classifying images into 
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 *   **Advanced Models**: Implements **VGG16**, **ResNet50**, and **MobileNetV2** using Transfer Learning.
 *   **Robust Data Pipeline**:
@@ -19,7 +19,7 @@ This project is a comprehensive Python-based system for classifying images into 
 *   **Interactive Interface**: A console-based menu system for easy navigation (Training, Evaluation, Prediction, Visualization).
 *   **Modular Architecture**: Clean separation of concerns (Data, Models, UI, Utils, Prediction).
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 Image-Classification-System/
@@ -35,7 +35,7 @@ Image-Classification-System/
 └── config.py             # Global Configuration
 ```
 
-## 🛠️ Setup & Installation
+## Setup & Installation
 
 1.  **Prerequisites**:
     *   Python 3.8+
@@ -46,7 +46,7 @@ Image-Classification-System/
     *   Download the **Intel Image Classification** dataset.
     *   Ensure the dataset path is configured in `config.py` (or `main.py` entry settings).
 
-## 💻 Usage
+## Usage
 
 ### 1. Main Application (Recommended)
 Launch the interactive menu system to access all features:
@@ -62,13 +62,13 @@ python run_training.py
 ```
 *   This will train all defined models and save weights to `weights/`.
 
-## 📊 Model Performance
+## Model Performance
 The system supports training and evaluating the following architectures:
 *   **MobileNetV2**: Lightweight, fast training (Recommended for CPU/Entry GPU).
 *   **VGG16**: Classic deep CNN architecture.
 *   **ResNet50**: Deep residual network for high accuracy.
 
-## 📝 Configuration
+## Configuration
 *   **Global Settings**: `config.py`
 *   **Model Parameters**: `models/config_models.py` (Adjust Batch Size, Epochs, Learning Rate).
 
