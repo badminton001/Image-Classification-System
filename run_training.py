@@ -16,7 +16,7 @@ from models import (
 # Configuration
 # Please modify this path to your actual dataset path
 # If no real data, you can use data_samples (might fail due to insufficient data)
-DATASET_PATH = r'c:\Users\Y\Desktop\Image-Classification-System\data_samples' 
+DATASET_PATH = './data_samples' 
 BATCH_SIZE = 32
 TARGET_SIZE = (224, 224)
 

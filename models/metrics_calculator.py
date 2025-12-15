@@ -225,7 +225,7 @@ def save_evaluation_results(
         f.write(f"Best Model: {best_model} (Accuracy: {best_acc:.4f})\n")
         f.write(f"{'='*70}\n")
     
-    print(f"\n✓ Evaluation results saved to {output_path}")
+    print(f"\nEvaluation results saved to {output_path}")
 
 
 # Module test
@@ -233,7 +233,7 @@ if __name__ == "__main__":
     print("="*60)
     print("Metrics Calculator Module Test")
     print("="*60)
-    print("\n✓ Module loaded successfully!")
+    print("\nModule loaded successfully!")
     print("\nAvailable functions:")
     print("  - calculate_accuracy()")
     print("  - calculate_precision()")

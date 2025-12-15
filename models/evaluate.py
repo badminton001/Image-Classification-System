@@ -206,7 +206,7 @@ if __name__ == "__main__":
     print("="*60)
     print("Evaluation Module Test")
     print("="*60)
-    print("\n✓ Module loaded successfully!")
+    print("\nModule loaded successfully!")
     print("\nAvailable functions:")
     print("  - evaluate_single_model()")
     print("  - get_predictions()")
