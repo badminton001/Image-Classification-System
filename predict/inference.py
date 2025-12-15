@@ -34,7 +34,7 @@ def load_model(model_name: str, weights_path: str) -> keras.Model:
     
     try:
         model = keras.models.load_model(weights_path)
-        print(f"✓ Successfully loaded {model_name}")
+        print(f"Successfully loaded {model_name}")
         return model
     except Exception as e:
         raise Exception(f"Failed to load model: {str(e)}")
@@ -44,7 +44,7 @@ def preprocess_input_image(image_path: str, target_size: Tuple[int, int] = (224,
     """
     Preprocess single image.
     
-    Pipeline: Load → Resize → Normalize → Add batch dimension
+    Pipeline: Load -> Resize -> Normalize -> Add batch dimension
     
     Args:
         image_path: Path to image file
@@ -145,7 +145,7 @@ def predict_batch(
             result = predict_single_image(model, image_path, class_names, top_k=1)
             results.append(result)
         except Exception as e:
-            print(f"\n⚠️  Failed {image_path}: {e}")
+            print(f"\nFailed {image_path}: {e}")
             results.append({
                 'image_path': image_path,
                 'predicted_class': 'ERROR',
@@ -158,7 +158,7 @@ def predict_batch(
             print(f"  Progress: {i + 1}/{len(image_paths)}")
     
     if not TQDM_AVAILABLE:
-        print(f"✓ Completed: {len(results)} images")
+        print(f"Completed: {len(results)} images")
     
     return results
 
@@ -208,7 +208,7 @@ if __name__ == "__main__":
     print("=" * 50)
     print("Inference Module Test")
     print("=" * 50)
-    print("\n✓ Module loaded successfully!")
+    print("\nModule loaded successfully!")
     print("\nAvailable functions:")
     print("  - load_model()")
     print("  - preprocess_input_image()")

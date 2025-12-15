@@ -127,7 +127,7 @@ if __name__ == "__main__":
     print("=" * 50)
     print("Predictor Module Test")
     print("=" * 50)
-    print("\n✓ Predictor class loaded successfully!")
+    print("\nPredictor class loaded successfully!")
     print("\nAvailable methods:")
     print("  - __init__(model_name, weights_path, class_names)")
     print("  - predict(image_path, top_k=3)")

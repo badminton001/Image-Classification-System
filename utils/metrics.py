@@ -138,7 +138,7 @@ if __name__ == "__main__":
     print("="*60)
     print("Metrics Utility Module Test")
     print("="*60)
-    print("\n✓ Module loaded successfully!")
+    print("\nModule loaded successfully!")
     print("\nAvailable functions:")
     print("  - calculate_accuracy()")
     print("  - calculate_precision()")
