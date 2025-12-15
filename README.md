@@ -71,6 +71,3 @@ The system supports training and evaluating the following architectures:
 ## Configuration
 *   **Global Settings**: `config.py`
 *   **Model Parameters**: `models/config_models.py` (Adjust Batch Size, Epochs, Learning Rate).
-
----
-*Developed for AIT102 - Python and TensorFlow Programming.*
