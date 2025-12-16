@@ -10,17 +10,8 @@ from typing import Dict, Tuple, Any, List
 from .metrics_calculator import get_model_performance_dict
 
 def evaluate_single_model(model: keras.Model, X_test, y_test) -> Tuple[float, float]:
-    """
-    Evaluate model on test set.
-    
-    Args:
-        model: Keras model instance
-        X_test: Test images
-        y_test: Test labels
-    
-    Returns:
-        (loss, accuracy) tuple
-    """
+
+    """Evaluate model on test set."""
     print(f"\nEvaluating {model.name}...")
     
     # Use Keras evaluate method
@@ -35,16 +26,8 @@ def evaluate_single_model(model: keras.Model, X_test, y_test) -> Tuple[float, fl
 
 
 def get_predictions(model: keras.Model, X_test) -> np.ndarray:
-    """
-    Get model predictions for test set.
-    
-    Args:
-        model: Keras model
-        X_test: Test images
-    
-    Returns:
-        Predictions array with shape (N, num_classes)
-    """
+
+    """Get model predictions for test set."""
     print(f"Getting predictions from {model.name}...")
     predictions = model.predict(X_test, verbose=0)
     
@@ -52,15 +35,8 @@ def get_predictions(model: keras.Model, X_test) -> np.ndarray:
 
 
 def get_predicted_classes(predictions: np.ndarray) -> np.ndarray:
-    """
-    Convert prediction probabilities to class labels.
-    
-    Args:
-        predictions: Prediction array from model.predict()
-    
-    Returns:
-        Class labels array
-    """
+
+    """Convert prediction probabilities to class labels."""
     # Use argmax to get the class with highest probability
     predicted_classes = np.argmax(predictions, axis=1)
     
@@ -68,16 +44,8 @@ def get_predicted_classes(predictions: np.ndarray) -> np.ndarray:
 
 
 def get_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
-    """
-    Generate confusion matrix.
-    
-    Args:
-        y_true: True labels
-        y_pred: Predicted labels
-    
-    Returns:
-        Confusion matrix as numpy array
-    """
+
+    """Generate confusion matrix."""
     # Convert one-hot encoded labels to class indices if needed
     if len(y_true.shape) > 1 and y_true.shape[1] > 1:
         y_true = np.argmax(y_true, axis=1)
@@ -97,36 +65,14 @@ def evaluate_all_models(
     y_test,
     class_names: List[str]
 ) -> Dict[str, Dict[str, Any]]:
-    """
-    Evaluate all models and compare performance.
-    
-    Args:
-        models_dict: Dictionary of {model_name: model_instance}
-        X_test: Test images
-        y_test: Test labels
-        class_names: List of class names
-    
-    Returns:
-        Dictionary with evaluation results for each model:
-        {
-            'model_name': {
-                'accuracy': float,
-                'precision': float,
-                'recall': float,
-                'f1_score': float,
-                'confusion_matrix': array,
-                'classification_report': str
-            }
-        }
-    """
-    print("\n" + "="*60)
-    print("Starting Model Evaluation and Comparison")
-    print("="*60)
+
+    """Evaluate all models and compare performance."""
+    print("\nStarting Model Evaluation and Comparison")
     
     all_results = {}
     
     for model_name, model in models_dict.items():
-        print(f"\n--- Evaluating {model_name} ---")
+        print(f"\nEvaluating {model_name}...")
         
         # Get predictions
         predictions = get_predictions(model, X_test)
@@ -159,30 +105,14 @@ def evaluate_all_models(
     best_model_name = max(all_results.keys(), key=lambda k: all_results[k]['accuracy'])
     best_accuracy = all_results[best_model_name]['accuracy']
     
-    print("\n" + "="*60)
-    print(f"Best Model: {best_model_name} with accuracy {best_accuracy:.4f}")
-    print("="*60 + "\n")
+    print(f"\nBest Model: {best_model_name} with accuracy {best_accuracy:.4f}\n")
     
     return all_results
 
 
 def compare_model_metrics(evaluation_results: Dict[str, Dict[str, Any]]) -> Dict[str, List[float]]:
-    """
-    Extract metrics from evaluation results for comparison visualization.
-    
-    Args:
-        evaluation_results: Results from evaluate_all_models()
-    
-    Returns:
-        Dictionary with metrics organized for plotting:
-        {
-            'model_names': [...],
-            'accuracy': [...],
-            'precision': [...],
-            'recall': [...],
-            'f1_score': [...]
-        }
-    """
+
+    """Extract metrics from evaluation results for comparison visualization."""
     comparison = {
         'model_names': [],
         'accuracy': [],
@@ -203,9 +133,7 @@ def compare_model_metrics(evaluation_results: Dict[str, Dict[str, Any]]) -> Dict
 
 # Module test
 if __name__ == "__main__":
-    print("="*60)
     print("Evaluation Module Test")
-    print("="*60)
     print("\nModule loaded successfully!")
     print("\nAvailable functions:")
     print("  - evaluate_single_model()")

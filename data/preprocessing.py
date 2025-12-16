@@ -16,19 +16,10 @@ def normalize_image(image_array):
     return image_array.astype('float32') / 255.0
 
 def split_dataset(image_paths, labels, test_size=0.15, val_size=0.15):
+
     """
     Split dataset into training, validation, and test sets.
-    
     Ensures stratified sampling to maintain class distribution.
-    
-    Args:
-        image_paths: List of file paths
-        labels: Corresponding labels
-        test_size: Proportion of dataset for testing
-        val_size: Proportion of dataset for validation
-        
-    Returns:
-        Tuple of (X_train, X_val, X_test, y_train, y_val, y_test)
     """
     X_train_val, X_test, y_train_val, y_test = train_test_split(
         image_paths, labels, test_size=test_size, stratify=labels, random_state=42
@@ -56,19 +47,8 @@ def _load_and_process_batch(image_paths, target_size):
     return np.array(data_list)
 
 def prepare_dataset(dataset_path, target_size=(224, 224), test_size=0.15, val_size=0.15):
-    """
-    Load, split, and preprocess the entire dataset.
-    
-    Args:
-        dataset_path: Path to dataset root directory
-        target_size: Target image dimensions
-        test_size: Test split ratio
-        val_size: Validation split ratio
-        
-    Returns:
-        (train_data, val_data, test_data, class_names)
-        Where each data tuple is (X, y)
-    """
+
+    """Load, split, and preprocess the entire dataset."""
     print(f"[Info] Scanning dataset from: {dataset_path}")
     image_paths, labels, class_names = load_dataset_from_directory(dataset_path)
     

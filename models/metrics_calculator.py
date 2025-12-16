@@ -16,65 +16,30 @@ from typing import Dict, Any, List
 
 
 def calculate_accuracy(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """
-    Calculate accuracy score (0-1).
-    
-    Args:
-        y_true: True labels
-        y_pred: Predicted labels
-    
-    Returns:
-        Accuracy score
-    """
+
+    """Calculate accuracy score (0-1)."""
     accuracy = accuracy_score(y_true, y_pred)
     return float(accuracy)
 
 
 def calculate_precision(y_true: np.ndarray, y_pred: np.ndarray, average='weighted') -> float:
-    """
-    Calculate precision score.
-    
-    Args:
-        y_true: True labels
-        y_pred: Predicted labels
-        average: Averaging method ('weighted', 'macro', 'micro')
-    
-    Returns:
-        Precision score
-    """
+
+    """Calculate precision score."""
     # Handle edge cases with zero_division parameter
     precision = precision_score(y_true, y_pred, average=average, zero_division=0)
     return float(precision)
 
 
 def calculate_recall(y_true: np.ndarray, y_pred: np.ndarray, average='weighted') -> float:
-    """
-    Calculate recall score.
-    
-    Args:
-        y_true: True labels
-        y_pred: Predicted labels
-        average: Averaging method ('weighted', 'macro', 'micro')
-    
-    Returns:
-        Recall score
-    """
+
+    """Calculate recall score."""
     recall = recall_score(y_true, y_pred, average=average, zero_division=0)
     return float(recall)
 
 
 def calculate_f1_score(y_true: np.ndarray, y_pred: np.ndarray, average='weighted') -> float:
-    """
-    Calculate F1 score.
-    
-    Args:
-        y_true: True labels
-        y_pred: Predicted labels
-        average: Averaging method ('weighted', 'macro', 'micro')
-    
-    Returns:
-        F1 score
-    """
+
+    """Calculate F1 score."""
     f1 = f1_score(y_true, y_pred, average=average, zero_division=0)
     return float(f1)
 
@@ -84,17 +49,8 @@ def get_classification_report(
     y_pred: np.ndarray, 
     class_names: List[str]
 ) -> str:
-    """
-    Generate classification report with per-class metrics.
-    
-    Args:
-        y_true: True labels
-        y_pred: Predicted labels
-        class_names: List of class names
-    
-    Returns:
-        Classification report as formatted string
-    """
+
+    """Generate classification report with per-class metrics."""
     # Generate report using sklearn
     report = classification_report(
         y_true, 
@@ -112,24 +68,8 @@ def get_model_performance_dict(
     y_pred: np.ndarray,
     class_names: List[str]
 ) -> Dict[str, Any]:
-    """
-    Calculate all metrics and return as dictionary.
-    
-    Args:
-        model_name: Name of the model
-        y_true: True labels
-        y_pred: Predicted labels
-        class_names: List of class names
-    
-    Returns:
-        Dictionary containing:
-        - accuracy: float
-        - precision: float
-        - recall: float
-        - f1_score: float
-        - confusion_matrix: numpy array
-        - classification_report: str
-    """
+
+    """Calculate all metrics and return as dictionary."""
     # Calculate all metrics
     accuracy = calculate_accuracy(y_true, y_pred)
     precision = calculate_precision(y_true, y_pred, average='weighted')
@@ -159,27 +99,19 @@ def save_evaluation_results(
     evaluation_results: Dict[str, Dict[str, Any]],
     output_path: str = 'results/evaluation_results.txt'
 ) -> None:
-    """
-    Save evaluation results to text file.
-    
-    Args:
-        evaluation_results: Results from evaluate_all_models()
-        output_path: Path to save results
-    """
+
+    """Save evaluation results to text file."""
     import os
     
     # Create results directory if it doesn't exist
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     with open(output_path, 'w', encoding='utf-8') as f:
-        f.write("="*70 + "\n")
-        f.write("MODEL EVALUATION RESULTS\n")
-        f.write("="*70 + "\n\n")
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write("MODEL EVALUATION RESULTS\n\n")
         
         for model_name, metrics in evaluation_results.items():
-            f.write(f"\n{'='*70}\n")
-            f.write(f"Model: {model_name}\n")
-            f.write(f"{'='*70}\n\n")
+            f.write(f"\nModel: {model_name}\n")
             
             # Write metrics
             f.write(f"Overall Performance Metrics:\n")
@@ -190,9 +122,9 @@ def save_evaluation_results(
             
             # Write classification report
             f.write(f"Detailed Classification Report:\n")
-            f.write(f"{'-'*70}\n")
+            f.write(f"Detailed Classification Report:\n")
             f.write(metrics['classification_report'])
-            f.write(f"\n{'-'*70}\n")
+            f.write("\n")
             
             # Write confusion matrix
             f.write(f"\nConfusion Matrix:\n")
@@ -202,12 +134,10 @@ def save_evaluation_results(
             f.write("\n")
         
         # Summary comparison
-        f.write(f"\n{'='*70}\n")
-        f.write("SUMMARY COMPARISON\n")
-        f.write(f"{'='*70}\n\n")
+        # Summary comparison
+        f.write("\nSUMMARY COMPARISON\n\n")
         
         f.write(f"{'Model':<20} {'Accuracy':>10} {'Precision':>10} {'Recall':>10} {'F1-Score':>10}\n")
-        f.write(f"{'-'*70}\n")
         
         for model_name, metrics in evaluation_results.items():
             f.write(f"{model_name:<20} "
@@ -221,18 +151,14 @@ def save_evaluation_results(
                         key=lambda k: evaluation_results[k]['accuracy'])
         best_acc = evaluation_results[best_model]['accuracy']
         
-        f.write(f"\n{'='*70}\n")
-        f.write(f"Best Model: {best_model} (Accuracy: {best_acc:.4f})\n")
-        f.write(f"{'='*70}\n")
+        f.write(f"\nBest Model: {best_model} (Accuracy: {best_acc:.4f})\n")
     
     print(f"\nEvaluation results saved to {output_path}")
 
 
 # Module test
 if __name__ == "__main__":
-    print("="*60)
     print("Metrics Calculator Module Test")
-    print("="*60)
     print("\nModule loaded successfully!")
     print("\nAvailable functions:")
     print("  - calculate_accuracy()")
