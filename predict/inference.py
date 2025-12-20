@@ -89,11 +89,6 @@ def predict_batch(
     image_paths: List[str],
     class_names: List[str]
 ) -> List[Dict[str, Any]]:
-def predict_batch(
-    model: keras.Model,
-    image_paths: List[str],
-    class_names: List[str]
-) -> List[Dict[str, Any]]:
     """Batch prediction for multiple images."""
     results = []
     
@@ -130,7 +125,6 @@ def format_predictions(prediction_dict: Dict[str, Any]) -> str:
 
     """Format prediction results as readable string."""
     # Error case
-    if 'error' in prediction_dict:
     if 'error' in prediction_dict:
         return f"\nPrediction Error\nImage: {prediction_dict['image_path']}\nError: {prediction_dict['error']}\n"
     
