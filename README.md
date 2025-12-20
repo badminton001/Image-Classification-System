@@ -16,7 +16,7 @@ This project is a comprehensive Python-based system for classifying images into 
     *   Custom training loops with automated callbacks.
     *   Early Stopping & Learning Rate Decay.
     *   Model Checkpointing (saves best `.h5` weights).
-*   **Interactive Interface**: A Tkinter GUI for easy navigation (Training, Evaluation, Prediction, Visualization).
+*   **Interactive Interface**: A Tkinter GUI for loading trained weights and running predictions.
 *   **Modular Architecture**: Clean separation of concerns (Data, Models, UI, Utils, Prediction).
 
 ## Project Structure
@@ -49,11 +49,11 @@ Image-Classification-System/
 ## Usage
 
 ### 1. Main Application (Recommended)
-Launch the interactive menu system to access all features:
+Launch the GUI to load trained weights and run predictions:
 ```bash
 python main.py
 ```
-*   **Functions**: Load Data, Train Models, Evaluate, Predict (Single/Batch), Visualize Results.
+*   **Functions**: Load trained weights, Predict (Single/Batch), Visualize prediction results.
 
 ### 2. Standalone Training
 To run the training pipeline directly without the UI:
