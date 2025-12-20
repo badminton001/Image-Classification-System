@@ -15,9 +15,12 @@ except ImportError:  # pragma: no cover
 
 try:
     import matplotlib
-
-    matplotlib.use("Agg")
+    
+    matplotlib.use("Agg")  # Force non-interactive backend
     import matplotlib.pyplot as plt
+    
+    # Force non-interactive mode
+    plt.ioff()
 except Exception as exc:  # pragma: no cover - matplotlib may be missing
     plt = None
     matplotlib = None
@@ -211,11 +214,16 @@ def plot_prediction_distribution(predictions: Any, class_names: Sequence[str], s
     """
     Plot prediction distribution for a single sample or averaged over batch predictions.
     """
+    logger.info("Starting plot_prediction_distribution...")
     _require_matplotlib()
     create_directories()
     if np is None:
         raise ImportError("numpy is required to plot prediction distribution.")
+    
+    logger.info("Converting predictions to numpy array...")
     probs = np.array(predictions)
+    logger.info(f"Predictions shape: {probs.shape}, dtype: {probs.dtype}")
+    
     if probs.ndim == 2:
         logger.info("Averaging prediction probabilities across batch dimension.")
         probs = probs.mean(axis=0)
@@ -227,6 +235,7 @@ def plot_prediction_distribution(predictions: Any, class_names: Sequence[str], s
         logger.warning("Number of class names does not match prediction length; falling back to indices.")
         labels = [str(i) for i in range(len(probs))]
 
+    logger.info("Creating matplotlib figure...")
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.bar(labels, probs, color="skyblue")
     ax.set_ylabel("Probability")
@@ -235,12 +244,20 @@ def plot_prediction_distribution(predictions: Any, class_names: Sequence[str], s
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
 
+    logger.info(f"Saving figure to {save_path}...")
     out_path = _ensure_dir(save_path)
-    fig.savefig(out_path, dpi=FIGURE_DPI)
-    if SHOW_PLOTS:
-        plt.show()
+    
+    try:
+        fig.savefig(out_path, dpi=FIGURE_DPI)
+        logger.info("Figure saved successfully")
+    except Exception as e:
+        logger.error(f"Failed to save figure: {e}")
+        plt.close(fig)
+        raise
+    
+    # Always close figure, never show
     plt.close(fig)
-    logger.info("Saved prediction distribution plot to %s", out_path)
+    logger.info(f"Saved prediction distribution plot to {out_path}")
     return out_path
 
 

@@ -107,7 +107,6 @@ def save_evaluation_results(
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     with open(output_path, 'w', encoding='utf-8') as f:
-    with open(output_path, 'w', encoding='utf-8') as f:
         f.write("MODEL EVALUATION RESULTS\n\n")
         
         for model_name, metrics in evaluation_results.items():
@@ -122,7 +121,6 @@ def save_evaluation_results(
             
             # Write classification report
             f.write(f"Detailed Classification Report:\n")
-            f.write(f"Detailed Classification Report:\n")
             f.write(metrics['classification_report'])
             f.write("\n")
             
@@ -133,7 +131,6 @@ def save_evaluation_results(
                 f.write("  " + " ".join(f"{val:4d}" for val in row) + "\n")
             f.write("\n")
         
-        # Summary comparison
         # Summary comparison
         f.write("\nSUMMARY COMPARISON\n\n")
         

@@ -7,7 +7,7 @@ import traceback
 from pathlib import Path
 
 from config import DATASET_PATH
-from ui.interface import main_menu
+from ui.interface import launch_gui
 from utils.helpers import create_directories, print_section
 from utils.logger import setup_logger
 
@@ -40,7 +40,7 @@ def run() -> None:
     _print_welcome()
     _check_environment(logger)
     try:
-        main_menu()
+        launch_gui()
     except KeyboardInterrupt:
         print("\nProgram interrupted by user.")
         logger.warning("Program interrupted by user (KeyboardInterrupt).")
