@@ -1,20 +1,25 @@
+
 """
-Console user interface for the Image Classification Enhancement System.
+Tkinter GUI for the Image Classification Enhancement System.
 """
 from __future__ import annotations
 
 import importlib
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import tkinter as tk
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from config import (
     BATCH_SIZE,
     DATASET_PATH,
     EPOCHS,
+    LEARNING_RATE,
     MODEL_NAMES,
-    MODELS_INFO,
     RESULTS_DIR,
     TARGET_IMAGE_SIZE,
     TEST_SIZE,
@@ -23,15 +28,7 @@ from config import (
     VAL_SIZE,
 )
 from utils import visualization
-from utils.helpers import (
-    collect_image_files,
-    create_directories,
-    format_time,
-    print_section,
-    print_separator,
-    save_results_to_json,
-    validate_path,
-)
+from utils.helpers import collect_image_files, create_directories, format_time, save_results_to_json
 from utils.logger import setup_logger
 
 logger = setup_logger("ImageClassifierUI")
@@ -54,513 +51,799 @@ class AppState:
     histories: Dict[str, Any] = field(default_factory=dict)
     evaluation_results: Dict[str, Any] = field(default_factory=dict)
     last_prediction: Any = None
+    last_prediction_image: Optional[Path] = None
 
 
-app_state = AppState()
+class ImageClassifierApp:
+    def __init__(self, root: tk.Tk) -> None:
+        self.root = root
+        self.state = AppState()
+        self._busy = False
+        self._action_buttons: List[ttk.Button] = []
 
+        self.dataset_path_var = tk.StringVar(value=str(DATASET_PATH))
+        self.train_model_var = tk.StringVar(value=MODEL_NAMES[0] if MODEL_NAMES else "")
+        self.predict_model_var = tk.StringVar(value="")
+        self.image_path_var = tk.StringVar(value="")
+        self.batch_dir_var = tk.StringVar(value="")
+        self.top_k_var = tk.StringVar(value=str(TOP_K))
+        self.save_overlay_var = tk.BooleanVar(value=True)
+        self.save_distribution_var = tk.BooleanVar(value=False)
+        self.status_var = tk.StringVar(value="Ready.")
 
-def print_main_menu() -> None:
-    print("\nImage Classification Enhancement System")
-    print("1. Load and preprocess dataset")
-    print("2. Train a single model")
-    print("3. Train all models")
-    print("4. Evaluate and compare models")
-    print("5. Predict a single image")
-    print("6. Batch prediction")
-    print("7. Visualizations")
-    print("8. Exit")
+        self.log_text: Optional[scrolledtext.ScrolledText] = None
+        self.progress: Optional[ttk.Progressbar] = None
 
+        self._build_ui()
+        self._refresh_model_options()
 
-def get_user_choice() -> int:
-    while True:
-        try:
-            choice = int(input("Enter choice (1-8): ").strip())
-            if 1 <= choice <= 8:
-                return choice
-        except ValueError:
-            pass
-        print("Invalid input. Please enter a number between 1 and 8.")
+    def _build_ui(self) -> None:
+        self.root.title("Image Classification Enhancement System")
+        self.root.geometry("1100x720")
+        self.root.minsize(1000, 680)
 
+        style = ttk.Style(self.root)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
 
-def _import_optional(module_name: str, friendly_name: str) -> Optional[Any]:
-    try:
-        return importlib.import_module(module_name)
-    except ModuleNotFoundError:
-        print(f"[Error] Missing {friendly_name} module: {module_name}")
-        logger.error("%s module not found: %s", friendly_name, module_name)
-    except Exception as exc:
-        print(f"[Error] Failed to import {friendly_name}: {exc}")
-        logger.error("Failed to import %s (%s): %s", friendly_name, module_name, exc)
-    return None
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
+        main_frame = ttk.Frame(self.root, padding=12)
+        main_frame.grid(row=0, column=0, sticky="nsew")
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+        main_frame.rowconfigure(0, weight=1)
 
-def _build_model(model_name: str, input_shape: Any, num_classes: int) -> Optional[Any]:
-    arch_module = _import_optional("models.model_architecture", "model architecture")
-    if arch_module is None:
-        return None
+        left_frame = ttk.Frame(main_frame)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        left_frame.columnconfigure(0, weight=1)
 
-    for fn_name in ("get_model", "build_model", "create_model"):
-        if hasattr(arch_module, fn_name):
-            builder = getattr(arch_module, fn_name)
-            try:
-                return builder(model_name=model_name, input_shape=input_shape, num_classes=num_classes)
-            except TypeError:
-                try:
-                    return builder(model_name, input_shape, num_classes)
-                except Exception as exc:
-                    logger.error("Error when building model using %s: %s", fn_name, exc)
-                    print(f"[Error] Failed to build model: {exc}")
-                    return None
-    print("[Error] Missing model build function (get_model/build_model/create_model).")
-    logger.error("Model build function missing in model_architecture.")
-    return None
+        right_frame = ttk.Frame(main_frame)
+        right_frame.grid(row=0, column=1, sticky="nsew")
+        right_frame.columnconfigure(0, weight=1)
+        right_frame.rowconfigure(0, weight=1)
 
-
-def _train_model(model_name: str, model_obj: Any) -> Optional[Any]:
-    trainer = _import_optional("models.train", "training")
-    if trainer is None:
-        return None
-
-    train_kwargs = dict(
-        model=model_obj,
-        model_name=model_name,
-        X_train=app_state.X_train,
-        y_train=app_state.y_train,
-        X_val=app_state.X_val,
-        y_val=app_state.y_val,
-        train_data=app_state.train_data,
-        val_data=app_state.val_data,
-        epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
-    )
-
-    for fn_name in ("train_model", "train", "fit_model"):
-        if hasattr(trainer, fn_name):
-            fn = getattr(trainer, fn_name)
-            try:
-                return fn(**train_kwargs)
-            except TypeError:
-                try:
-                    return fn(
-                        model_obj,
-                        app_state.train_data or app_state.X_train,
-                        app_state.y_train,
-                        app_state.val_data or app_state.X_val,
-                        app_state.y_val,
-                    )
-                except Exception as exc:
-                    logger.error("Training failed with %s: %s", fn_name, exc)
-                    print(f"[Error] Training failed: {exc}")
-                    return None
-    print("[Error] Missing training function (train_model/train/fit_model).")
-    logger.error("Train function missing in models.train.")
-    return None
-
-
-def _evaluate_model(model_name: str, model_obj: Any) -> Optional[Dict[str, Any]]:
-    evaluator = _import_optional("models.evaluate", "evaluation") or _import_optional("models.evaluation", "evaluation")
-    if evaluator is None:
-        return None
-
-    eval_kwargs = dict(
-        model=model_obj,
-        model_name=model_name,
-        X_test=app_state.X_test,
-        y_test=app_state.y_test,
-        test_data=app_state.test_data,
-    )
-
-    for fn_name in ("evaluate_model", "evaluate", "run_evaluation"):
-        if hasattr(evaluator, fn_name):
-            fn = getattr(evaluator, fn_name)
-            try:
-                return fn(**eval_kwargs)
-            except TypeError:
-                try:
-                    return fn(model_obj, app_state.X_test, app_state.y_test)
-                except Exception as exc:
-                    logger.error("Evaluation failed with %s: %s", fn_name, exc)
-                    print(f"[Error] Evaluation failed: {exc}")
-                    return None
-    print("[Error] Missing evaluation function (evaluate_model/evaluate/run_evaluation).")
-    logger.error("Evaluation function missing in models.evaluate.")
-    return None
-
-
-def _predict_single(model_obj: Any, image_path: Path) -> Optional[Any]:
-    predict_module = _import_optional("predict.inference", "prediction") or _import_optional("predict.predictor", "prediction")
-    if predict_module is None:
-        return None
-
-    candidates = ("predict_single", "predict_image", "run_inference", "predict_one", "predict")
-    for fn_name in candidates:
-        if hasattr(predict_module, fn_name):
-            fn = getattr(predict_module, fn_name)
-            try:
-                return fn(model_obj, image_path)
-            except TypeError:
-                try:
-                    return fn(image_path)
-                except Exception as exc:
-                    logger.error("Prediction failed with %s: %s", fn_name, exc)
-                    print(f"[Error] Prediction failed: {exc}")
-                    return None
-    print("[Error] No prediction function found.")
-    logger.error("No prediction function found in predict module.")
-    return None
-
-
-def _predict_batch(model_obj: Any, image_paths: List[Path]) -> Optional[Any]:
-    predict_module = _import_optional("predict.inference", "prediction") or _import_optional("predict.predictor", "prediction")
-    if predict_module is None:
-        return None
-
-    candidates = ("predict_batch", "batch_predict", "predict_directory")
-    for fn_name in candidates:
-        if hasattr(predict_module, fn_name):
-            fn = getattr(predict_module, fn_name)
-            try:
-                return fn(model_obj, image_paths)
-            except TypeError:
-                try:
-                    return fn(image_paths)
-                except Exception as exc:
-                    logger.error("Batch prediction failed with %s: %s", fn_name, exc)
-                    print(f"[Error] Batch prediction failed: {exc}")
-                    return None
-    print("[Error] No batch prediction function found.")
-    logger.error("No batch prediction function found in predict module.")
-    return None
-
-
-def handle_dataset_loading() -> None:
-    print_section("Load and preprocess dataset")
-    data_module = _import_optional("data.preprocessing", "data preprocessing")
-    if data_module is None:
-        return
-
-    if not hasattr(data_module, "prepare_dataset"):
-        print("[Error] Missing function data.preprocessing.prepare_dataset")
-        logger.error("prepare_dataset not found in data.preprocessing")
-        return
-
-    try:
-        result = data_module.prepare_dataset(
-            DATASET_PATH,
-            train_size=TRAIN_SIZE,
-            val_size=VAL_SIZE,
-            test_size=TEST_SIZE,
-            target_size=TARGET_IMAGE_SIZE,
+        title_label = ttk.Label(
+            left_frame,
+            text="Image Classification Enhancement System",
+            font=("Segoe UI", 14, "bold"),
         )
-    except Exception as exc:
-        print(f"[Error] Dataset loading failed: {exc}")
-        logger.error("Dataset loading failed: %s", exc)
-        return
+        title_label.grid(row=0, column=0, sticky="w", pady=(0, 10))
 
-    if isinstance(result, dict):
-        app_state.X_train = result.get("X_train")
-        app_state.X_val = result.get("X_val")
-        app_state.X_test = result.get("X_test")
-        app_state.y_train = result.get("y_train")
-        app_state.y_val = result.get("y_val")
-        app_state.y_test = result.get("y_test")
-        app_state.train_data = result.get("train_data")
-        app_state.val_data = result.get("val_data")
-        app_state.test_data = result.get("test_data")
-        app_state.class_names = result.get("class_names")
-    elif isinstance(result, (list, tuple)) and len(result) >= 6:
-        app_state.X_train, app_state.X_val, app_state.X_test, app_state.y_train, app_state.y_val, app_state.y_test = result[:6]
-        if len(result) >= 7:
-            app_state.class_names = result[6]
-    else:
-        print("[Warning] Unrecognized return format; data may not have loaded correctly.")
-        logger.warning("Unrecognized dataset return format: %s", type(result))
-        return
+        dataset_frame = ttk.LabelFrame(left_frame, text="Dataset")
+        dataset_frame.grid(row=1, column=0, sticky="ew", pady=6)
+        dataset_frame.columnconfigure(1, weight=1)
+        ttk.Label(dataset_frame, text="Dataset path:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(dataset_frame, textvariable=self.dataset_path_var).grid(row=0, column=1, sticky="ew", padx=6, pady=4)
+        ttk.Button(dataset_frame, text="Browse", command=self._browse_dataset).grid(row=0, column=2, padx=6, pady=4)
+        load_btn = ttk.Button(dataset_frame, text="Load Dataset", command=self._on_load_dataset)
+        load_btn.grid(row=1, column=0, columnspan=3, sticky="ew", padx=6, pady=6)
+        self._action_buttons.append(load_btn)
 
-    app_state.dataset_loaded = True
-    print("Dataset loaded.")
-    logger.info("Dataset loaded successfully.")
+        training_frame = ttk.LabelFrame(left_frame, text="Training")
+        training_frame.grid(row=2, column=0, sticky="ew", pady=6)
+        training_frame.columnconfigure(1, weight=1)
+        ttk.Label(training_frame, text="Model:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
+        self.train_model_combo = ttk.Combobox(
+            training_frame,
+            textvariable=self.train_model_var,
+            values=MODEL_NAMES,
+            state="readonly",
+        )
+        self.train_model_combo.grid(row=0, column=1, sticky="ew", padx=6, pady=4)
+        train_btn = ttk.Button(training_frame, text="Train Selected Model", command=self._on_train_single)
+        train_btn.grid(row=1, column=0, columnspan=2, sticky="ew", padx=6, pady=4)
+        train_all_btn = ttk.Button(training_frame, text="Train All Models", command=self._on_train_all)
+        train_all_btn.grid(row=2, column=0, columnspan=2, sticky="ew", padx=6, pady=4)
+        self._action_buttons.extend([train_btn, train_all_btn])
 
+        eval_frame = ttk.LabelFrame(left_frame, text="Evaluation")
+        eval_frame.grid(row=3, column=0, sticky="ew", pady=6)
+        eval_btn = ttk.Button(eval_frame, text="Evaluate Models", command=self._on_evaluate_models)
+        eval_btn.grid(row=0, column=0, sticky="ew", padx=6, pady=6)
+        self._action_buttons.append(eval_btn)
 
-def _choose_model_name() -> Optional[str]:
-    print("Available models:")
-    for idx, name in enumerate(MODEL_NAMES, 1):
-        info = MODELS_INFO.get(name, {})
-        desc = info.get("description", "")
-        print(f"{idx}. {name} ({desc})")
-    selection = input("Select model number: ").strip()
-    if not selection.isdigit():
-        print("Invalid input.")
+        predict_frame = ttk.LabelFrame(left_frame, text="Prediction")
+        predict_frame.grid(row=4, column=0, sticky="ew", pady=6)
+        predict_frame.columnconfigure(1, weight=1)
+        ttk.Label(predict_frame, text="Model:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
+        self.predict_model_combo = ttk.Combobox(
+            predict_frame,
+            textvariable=self.predict_model_var,
+            values=MODEL_NAMES,
+            state="readonly",
+        )
+        self.predict_model_combo.grid(row=0, column=1, sticky="ew", padx=6, pady=4)
+        ttk.Label(predict_frame, text="Top-K:").grid(row=0, column=2, sticky="w", padx=6, pady=4)
+        ttk.Entry(predict_frame, textvariable=self.top_k_var, width=6).grid(row=0, column=3, sticky="w", padx=6, pady=4)
+
+        ttk.Label(predict_frame, text="Image path:").grid(row=1, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(predict_frame, textvariable=self.image_path_var).grid(row=1, column=1, columnspan=2, sticky="ew", padx=6, pady=4)
+        ttk.Button(predict_frame, text="Browse", command=self._browse_image).grid(row=1, column=3, padx=6, pady=4)
+        predict_btn = ttk.Button(predict_frame, text="Predict Image", command=self._on_predict_single)
+        predict_btn.grid(row=2, column=0, columnspan=4, sticky="ew", padx=6, pady=4)
+
+        ttk.Label(predict_frame, text="Batch folder:").grid(row=3, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(predict_frame, textvariable=self.batch_dir_var).grid(row=3, column=1, columnspan=2, sticky="ew", padx=6, pady=4)
+        ttk.Button(predict_frame, text="Browse", command=self._browse_batch_dir).grid(row=3, column=3, padx=6, pady=4)
+        batch_btn = ttk.Button(predict_frame, text="Batch Predict", command=self._on_batch_predict)
+        batch_btn.grid(row=4, column=0, columnspan=4, sticky="ew", padx=6, pady=4)
+
+        ttk.Checkbutton(predict_frame, text="Save overlay image", variable=self.save_overlay_var).grid(row=5, column=0, columnspan=2, sticky="w", padx=6, pady=2)
+        ttk.Checkbutton(predict_frame, text="Save prediction distribution", variable=self.save_distribution_var).grid(row=5, column=2, columnspan=2, sticky="w", padx=6, pady=2)
+        self._action_buttons.extend([predict_btn, batch_btn])
+
+        viz_frame = ttk.LabelFrame(left_frame, text="Visualization")
+        viz_frame.grid(row=5, column=0, sticky="ew", pady=6)
+        viz_frame.columnconfigure(0, weight=1)
+        viz_buttons = [
+            ("Training History", self._on_plot_training_history),
+            ("Confusion Matrix", self._on_plot_confusion_matrix),
+            ("Model Comparison", self._on_plot_model_comparison),
+            ("Prediction Distribution", self._on_plot_prediction_distribution),
+            ("Prediction Overlay", self._on_plot_prediction_overlay),
+        ]
+        for idx, (label, handler) in enumerate(viz_buttons):
+            btn = ttk.Button(viz_frame, text=label, command=handler)
+            btn.grid(row=idx, column=0, sticky="ew", padx=6, pady=3)
+            self._action_buttons.append(btn)
+
+        log_frame = ttk.LabelFrame(right_frame, text="Activity Log")
+        log_frame.grid(row=0, column=0, sticky="nsew")
+        log_frame.columnconfigure(0, weight=1)
+        log_frame.rowconfigure(0, weight=1)
+        self.log_text = scrolledtext.ScrolledText(log_frame, wrap="word", height=30, state="disabled")
+        self.log_text.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
+        clear_btn = ttk.Button(log_frame, text="Clear Log", command=self._clear_log)
+        clear_btn.grid(row=1, column=0, sticky="e", padx=6, pady=(0, 6))
+
+        status_frame = ttk.Frame(self.root, padding=(12, 0, 12, 12))
+        status_frame.grid(row=1, column=0, sticky="ew")
+        status_frame.columnconfigure(0, weight=1)
+        self.progress = ttk.Progressbar(status_frame, mode="indeterminate")
+        self.progress.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        ttk.Label(status_frame, textvariable=self.status_var).grid(row=0, column=1, sticky="e")
+
+    def _browse_dataset(self) -> None:
+        path = filedialog.askdirectory(title="Select Dataset Folder")
+        if path:
+            self.dataset_path_var.set(path)
+
+    def _browse_image(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Select Image",
+            filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp"), ("All Files", "*.*")],
+        )
+        if path:
+            self.image_path_var.set(path)
+
+    def _browse_batch_dir(self) -> None:
+        path = filedialog.askdirectory(title="Select Batch Folder")
+        if path:
+            self.batch_dir_var.set(path)
+
+    def _clear_log(self) -> None:
+        if self.log_text is None:
+            return
+        self.log_text.configure(state="normal")
+        self.log_text.delete("1.0", "end")
+        self.log_text.configure(state="disabled")
+
+    def _log(self, message: str) -> None:
+        if self.log_text is None:
+            return
+        timestamp = time.strftime("%H:%M:%S")
+        self.log_text.configure(state="normal")
+        self.log_text.insert("end", f"[{timestamp}] {message}\n")
+        self.log_text.configure(state="disabled")
+        self.log_text.see("end")
+
+    def _set_status(self, message: str) -> None:
+        self.status_var.set(message)
+
+    def _set_busy(self, busy: bool, message: Optional[str] = None) -> None:
+        self._busy = busy
+        for btn in self._action_buttons:
+            btn.configure(state="disabled" if busy else "normal")
+        if self.progress:
+            if busy:
+                self.progress.start(10)
+            else:
+                self.progress.stop()
+        if message:
+            self._set_status(message)
+        elif not busy:
+            self._set_status("Ready.")
+
+    def _post(self, func, *args, **kwargs) -> None:
+        self.root.after(0, lambda: func(*args, **kwargs))
+
+    def _run_task(self, label: str, func) -> None:
+        if self._busy:
+            messagebox.showinfo("Busy", "An operation is already running.")
+            return
+
+        def worker() -> None:
+            self._post(self._set_busy, True, label)
+            try:
+                func()
+            except Exception as exc:
+                logger.error("Operation failed: %s", exc)
+                self._post(messagebox.showerror, "Error", str(exc))
+            finally:
+                self._post(self._set_busy, False, None)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _import_optional(self, module_name: str, friendly_name: str) -> Optional[Any]:
+        try:
+            return importlib.import_module(module_name)
+        except ModuleNotFoundError:
+            self._post(self._log, f"[Error] Missing {friendly_name} module: {module_name}")
+            logger.error("%s module not found: %s", friendly_name, module_name)
+        except Exception as exc:
+            self._post(self._log, f"[Error] Failed to import {friendly_name}: {exc}")
+            logger.error("Failed to import %s (%s): %s", friendly_name, module_name, exc)
         return None
-    index = int(selection)
-    if 1 <= index <= len(MODEL_NAMES):
-        return MODEL_NAMES[index - 1]
-    print("Selection out of range.")
-    return None
 
+    def _resolve_num_classes(self) -> int:
+        if self.state.class_names:
+            return len(self.state.class_names)
+        try:
+            config_models = importlib.import_module("models.config_models")
+            return int(getattr(config_models, "NUM_CLASSES", 0))
+        except Exception:
+            return 0
 
-def _resolve_input_shape() -> Any:
-    height, width = TARGET_IMAGE_SIZE
-    return (height, width, 3)
+    def _resolve_class_names(self) -> List[str]:
+        if self.state.class_names:
+            return list(self.state.class_names)
+        try:
+            config_models = importlib.import_module("models.config_models")
+            names = getattr(config_models, "CLASS_NAMES", None)
+            return list(names) if names else []
+        except Exception:
+            return []
 
+    def _update_state_from_dataset(self, result: Any) -> bool:
+        if result is None:
+            return False
 
-def handle_single_model_training() -> None:
-    if not app_state.dataset_loaded:
-        print("Please load the dataset first (option 1).")
-        return
-    model_name = _choose_model_name()
-    if not model_name:
-        return
+        if isinstance(result, dict):
+            self.state.X_train = result.get("X_train")
+            self.state.X_val = result.get("X_val")
+            self.state.X_test = result.get("X_test")
+            self.state.y_train = result.get("y_train")
+            self.state.y_val = result.get("y_val")
+            self.state.y_test = result.get("y_test")
+            self.state.train_data = result.get("train_data")
+            self.state.val_data = result.get("val_data")
+            self.state.test_data = result.get("test_data")
+            self.state.class_names = result.get("class_names")
+            return True
 
-    num_classes = len(app_state.class_names) if app_state.class_names else 0
-    model_obj = _build_model(model_name, _resolve_input_shape(), num_classes)
-    if model_obj is None:
-        return
+        if isinstance(result, (list, tuple)):
+            if len(result) == 4 and all(isinstance(part, (list, tuple)) for part in result[:3]):
+                (x_train, y_train), (x_val, y_val), (x_test, y_test), class_names = result
+                self.state.X_train = x_train
+                self.state.X_val = x_val
+                self.state.X_test = x_test
+                self.state.y_train = y_train
+                self.state.y_val = y_val
+                self.state.y_test = y_test
+                self.state.class_names = list(class_names) if class_names is not None else None
+                return True
+            if len(result) >= 6:
+                self.state.X_train, self.state.X_val, self.state.X_test, self.state.y_train, self.state.y_val, self.state.y_test = result[:6]
+                if len(result) >= 7:
+                    self.state.class_names = list(result[6]) if result[6] is not None else None
+                return True
 
-    start = time.time()
-    history = _train_model(model_name, model_obj)
-    duration = time.time() - start
-    if history is None:
-        print("Training did not complete.")
-        return
+        return False
 
-    app_state.models_dict[model_name] = model_obj
-    app_state.histories[model_name] = history
-    print(f"{model_name} training finished in {format_time(duration)}.")
-    logger.info("Training finished for %s in %s seconds", model_name, round(duration, 2))
+    def _resolve_input_shape(self) -> Tuple[int, int, int]:
+        height, width = TARGET_IMAGE_SIZE
+        return (height, width, 3)
 
+    def _prepare_training_data(self) -> Tuple[Any, Any, int]:
+        if self.state.X_train is None or self.state.y_train is None:
+            raise ValueError("Training data not loaded.")
+        if self.state.X_val is None or self.state.y_val is None:
+            raise ValueError("Validation data not loaded.")
 
-def handle_all_models_training() -> None:
-    if not app_state.dataset_loaded:
-        print("Please load the dataset first (option 1).")
-        return
-    for model_name in MODEL_NAMES:
-        print_separator(f"Training model: {model_name}")
-        handle_single_model_training_for(model_name)
+        num_classes = self._resolve_num_classes()
+        if num_classes <= 0:
+            raise ValueError("Number of classes is unknown.")
 
+        y_train = self.state.y_train
+        y_val = self.state.y_val
+        y_train_cat = None
+        y_val_cat = None
 
-def handle_single_model_training_for(model_name: str) -> None:
-    num_classes = len(app_state.class_names) if app_state.class_names else 0
-    model_obj = _build_model(model_name, _resolve_input_shape(), num_classes)
-    if model_obj is None:
-        return
-    start = time.time()
-    history = _train_model(model_name, model_obj)
-    duration = time.time() - start
-    if history is None:
-        return
-    app_state.models_dict[model_name] = model_obj
-    app_state.histories[model_name] = history
-    print(f"{model_name} training finished in {format_time(duration)}.")
-    logger.info("Training finished for %s in %s seconds", model_name, round(duration, 2))
+        try:
+            from tensorflow.keras.utils import to_categorical
 
+            y_train_cat = to_categorical(y_train, num_classes)
+            y_val_cat = to_categorical(y_val, num_classes)
+        except Exception as exc:
+            logger.warning("Failed to convert labels to categorical: %s", exc)
 
-def handle_model_evaluation() -> None:
-    if not app_state.models_dict:
-        print("Please train at least one model first.")
-        return
+        augmentation = self._import_optional("data.augmentation", "data augmentation")
+        if augmentation and y_train_cat is not None and y_val_cat is not None:
+            if hasattr(augmentation, "create_augmented_train_generator") and hasattr(augmentation, "create_validation_generator"):
+                train_dataset = augmentation.create_augmented_train_generator(self.state.X_train, y_train_cat, BATCH_SIZE)
+                val_dataset = augmentation.create_validation_generator(self.state.X_val, y_val_cat, BATCH_SIZE)
+                return train_dataset, val_dataset, num_classes
 
-    results: Dict[str, Any] = {}
-    for model_name, model_obj in app_state.models_dict.items():
-        print_separator(f"Evaluating model: {model_name}")
-        metrics = _evaluate_model(model_name, model_obj)
-        if metrics is None:
-            continue
-        results[model_name] = metrics
-        print(f"{model_name} evaluation: {metrics}")
+        train_dataset = (self.state.X_train, y_train_cat if y_train_cat is not None else y_train)
+        val_dataset = (self.state.X_val, y_val_cat if y_val_cat is not None else y_val)
+        return train_dataset, val_dataset, num_classes
 
-    if results:
-        app_state.evaluation_results.update(results)
-        output_path = save_results_to_json(results, RESULTS_DIR / "evaluation_results.json")
-        print(f"Evaluation results saved to {output_path}")
-        logger.info("Evaluation results saved to %s", output_path)
-    else:
-        print("No valid evaluation results produced.")
+    def _build_model(self, model_name: str, num_classes: int) -> Optional[Any]:
+        arch_module = self._import_optional("models.model_architecture", "model architecture")
+        if arch_module is None:
+            return None
 
+        builder = None
+        for fn_name in ("get_model", "build_model", "create_model"):
+            if hasattr(arch_module, fn_name):
+                builder = getattr(arch_module, fn_name)
+                break
 
-def _select_trained_model() -> Optional[str]:
-    if not app_state.models_dict:
-        print("No trained models available.")
+        if builder is None:
+            lower_name = model_name.lower()
+            mapping = {
+                "vgg16": "build_vgg16_model",
+                "resnet50": "build_resnet50_model",
+                "mobilenetv2": "build_mobilenetv2_model",
+            }
+            fn_name = mapping.get(lower_name)
+            if fn_name and hasattr(arch_module, fn_name):
+                builder = getattr(arch_module, fn_name)
+
+        if builder is None:
+            self._post(self._log, "[Error] Missing model build function.")
+            logger.error("Model build function missing in model_architecture.")
+            return None
+
+        try:
+            model_obj = builder(model_name=model_name, input_shape=self._resolve_input_shape(), num_classes=num_classes)
+        except TypeError:
+            try:
+                model_obj = builder(num_classes, self._resolve_input_shape())
+            except TypeError:
+                model_obj = builder(num_classes)
+        except Exception as exc:
+            logger.error("Model build failed: %s", exc)
+            self._post(self._log, f"[Error] Model build failed: {exc}")
+            return None
+
+        if hasattr(arch_module, "compile_model"):
+            try:
+                model_obj = arch_module.compile_model(model_obj, learning_rate=LEARNING_RATE)
+            except TypeError:
+                model_obj = arch_module.compile_model(model_obj)
+            except Exception as exc:
+                logger.error("Model compile failed: %s", exc)
+                self._post(self._log, f"[Error] Model compile failed: {exc}")
+                return None
+        return model_obj
+
+    def _train_model(self, model_name: str, model_obj: Any) -> Optional[Any]:
+        trainer = self._import_optional("models.train", "training")
+        if trainer is None:
+            return None
+
+        train_dataset, val_dataset, _ = self._prepare_training_data()
+
+        for fn_name in ("train_single_model", "train_model", "train", "fit_model"):
+            if hasattr(trainer, fn_name):
+                fn = getattr(trainer, fn_name)
+                try:
+                    return fn(model_obj, model_name, train_dataset, val_dataset, epochs=EPOCHS)
+                except TypeError:
+                    try:
+                        return fn(model_obj, train_dataset, val_dataset, EPOCHS)
+                    except TypeError:
+                        try:
+                            return fn(
+                                model_obj,
+                                self.state.train_data or train_dataset,
+                                self.state.y_train,
+                                self.state.val_data or val_dataset,
+                                self.state.y_val,
+                            )
+                        except Exception as exc:
+                            logger.error("Training failed with %s: %s", fn_name, exc)
+                            self._post(self._log, f"[Error] Training failed: {exc}")
+                            return None
+        self._post(self._log, "[Error] Missing training function.")
+        logger.error("Train function missing in models.train.")
         return None
-    names = list(app_state.models_dict.keys())
-    for idx, name in enumerate(names, 1):
-        print(f"{idx}. {name}")
-    choice = input("Select model number: ").strip()
-    if choice.isdigit():
-        index = int(choice)
-        if 1 <= index <= len(names):
-            return names[index - 1]
-    print("Invalid selection.")
-    return None
 
+    def _evaluate_models(self) -> Optional[Dict[str, Any]]:
+        evaluator = self._import_optional("models.evaluate", "evaluation")
+        if evaluator is None:
+            return None
 
-def handle_single_prediction() -> None:
-    if not app_state.models_dict:
-        print("Please train or load a model first.")
-        return
-    model_name = _select_trained_model()
-    if not model_name:
-        return
-    image_input = input("Enter image path: ").strip().strip('"')
-    image_path = Path(image_input)
-    if not validate_path(image_path):
-        return
+        if hasattr(evaluator, "evaluate_all_models"):
+            try:
+                class_names = self._resolve_class_names()
+                return evaluator.evaluate_all_models(self.state.models_dict, self.state.X_test, self.state.y_test, class_names)
+            except Exception as exc:
+                logger.error("Evaluation failed: %s", exc)
+                self._post(self._log, f"[Error] Evaluation failed: {exc}")
+                return None
 
-    prediction = _predict_single(app_state.models_dict[model_name], image_path)
-    if prediction is None:
-        return
+        results: Dict[str, Any] = {}
+        for model_name, model_obj in self.state.models_dict.items():
+            for fn_name in ("evaluate_model", "evaluate", "run_evaluation", "evaluate_single_model"):
+                if hasattr(evaluator, fn_name):
+                    fn = getattr(evaluator, fn_name)
+                    try:
+                        results[model_name] = fn(model_obj, self.state.X_test, self.state.y_test)
+                    except Exception as exc:
+                        logger.error("Evaluation failed with %s: %s", fn_name, exc)
+                        self._post(self._log, f"[Error] Evaluation failed: {exc}")
+                    break
+        return results or None
 
-    app_state.last_prediction = prediction
-    print(f"Prediction result: {prediction}")
-    if isinstance(prediction, dict) and prediction.get("top_k_predictions"):
-        top_items = prediction["top_k_predictions"][:TOP_K]
-        print("Top-K predictions:")
-        for label, score in top_items:
-            print(f"- {label}: {score}")
-    if isinstance(prediction, dict) and "probabilities" in prediction:
-        probs = prediction["probabilities"]
-        class_names = prediction.get("class_names", app_state.class_names or [])
-        visualization.plot_prediction_distribution(probs, class_names, RESULTS_DIR / "last_prediction.png")
-    if input("Generate image with prediction overlay? (y/n): ").strip().lower() == "y":
+    def _predict_single(self, model_obj: Any, image_path: Path, top_k: int) -> Optional[Any]:
+        predict_module = self._import_optional("predict.inference", "prediction")
+        if predict_module is None:
+            return None
+
+        class_names = self._resolve_class_names()
+        candidates = ("predict_single_image", "predict_single", "predict_image", "run_inference", "predict_one", "predict")
+        for fn_name in candidates:
+            if hasattr(predict_module, fn_name):
+                fn = getattr(predict_module, fn_name)
+                try:
+                    result = fn(model=model_obj, image_path=str(image_path), class_names=class_names, top_k=top_k)
+                except TypeError:
+                    try:
+                        result = fn(model_obj, str(image_path), class_names, top_k)
+                    except Exception as exc:
+                        logger.error("Prediction failed with %s: %s", fn_name, exc)
+                        self._post(self._log, f"[Error] Prediction failed: {exc}")
+                        return None
+
+                if isinstance(result, dict) and "probabilities" not in result:
+                    if hasattr(predict_module, "preprocess_input_image"):
+                        try:
+                            img = predict_module.preprocess_input_image(str(image_path), target_size=TARGET_IMAGE_SIZE)
+                            probs = model_obj.predict(img, verbose=0)[0]
+                            result["probabilities"] = probs
+                            result["class_names"] = class_names
+                        except Exception as exc:
+                            logger.warning("Failed to compute probabilities: %s", exc)
+                return result
+        self._post(self._log, "[Error] No prediction function found.")
+        logger.error("No prediction function found in predict module.")
+        return None
+
+    def _predict_batch(self, model_obj: Any, image_paths: Sequence[Path]) -> Optional[Any]:
+        predict_module = self._import_optional("predict.inference", "prediction")
+        if predict_module is None:
+            return None
+
+        class_names = self._resolve_class_names()
+        candidates = ("predict_batch", "batch_predict", "predict_directory")
+        for fn_name in candidates:
+            if hasattr(predict_module, fn_name):
+                fn = getattr(predict_module, fn_name)
+                try:
+                    return fn(model=model_obj, image_paths=[str(p) for p in image_paths], class_names=class_names)
+                except TypeError:
+                    try:
+                        return fn(model_obj, [str(p) for p in image_paths], class_names)
+                    except Exception as exc:
+                        logger.error("Batch prediction failed with %s: %s", fn_name, exc)
+                        self._post(self._log, f"[Error] Batch prediction failed: {exc}")
+                        return None
+        self._post(self._log, "[Error] No batch prediction function found.")
+        logger.error("No batch prediction function found in predict module.")
+        return None
+
+    def _refresh_model_options(self) -> None:
+        trained_models = list(self.state.models_dict.keys())
+        if trained_models:
+            self.predict_model_combo.configure(values=trained_models)
+            if self.predict_model_var.get() not in trained_models:
+                self.predict_model_var.set(trained_models[0])
+        else:
+            self.predict_model_combo.configure(values=MODEL_NAMES)
+            if MODEL_NAMES and not self.predict_model_var.get():
+                self.predict_model_var.set(MODEL_NAMES[0])
+
+    def _on_load_dataset(self) -> None:
+        def task() -> None:
+            dataset_path = Path(self.dataset_path_var.get().strip())
+            if not dataset_path.exists():
+                self._post(messagebox.showwarning, "Missing Path", f"Dataset path does not exist: {dataset_path}")
+                return
+
+            data_module = self._import_optional("data.preprocessing", "data preprocessing")
+            if data_module is None:
+                return
+            if not hasattr(data_module, "prepare_dataset"):
+                self._post(messagebox.showerror, "Missing Function", "prepare_dataset not found in data.preprocessing")
+                return
+
+            self._post(self._log, f"Loading dataset from {dataset_path}...")
+            try:
+                try:
+                    result = data_module.prepare_dataset(
+                        dataset_path,
+                        train_size=TRAIN_SIZE,
+                        val_size=VAL_SIZE,
+                        test_size=TEST_SIZE,
+                        target_size=TARGET_IMAGE_SIZE,
+                    )
+                except TypeError:
+                    result = data_module.prepare_dataset(
+                        dataset_path,
+                        target_size=TARGET_IMAGE_SIZE,
+                        test_size=TEST_SIZE,
+                        val_size=VAL_SIZE,
+                    )
+            except Exception as exc:
+                logger.error("Dataset loading failed: %s", exc)
+                self._post(messagebox.showerror, "Error", f"Dataset loading failed: {exc}")
+                return
+
+            if not self._update_state_from_dataset(result):
+                self._post(messagebox.showwarning, "Warning", "Unrecognized dataset format returned.")
+                return
+
+            self.state.dataset_loaded = True
+            self._post(self._log, "Dataset loaded successfully.")
+            self._post(messagebox.showinfo, "Success", "Dataset loaded successfully.")
+
+        self._run_task("Loading dataset...", task)
+
+    def _on_train_single(self) -> None:
+        def task() -> None:
+            if not self.state.dataset_loaded:
+                self._post(messagebox.showwarning, "Missing Data", "Please load the dataset first.")
+                return
+
+            model_name = self.train_model_var.get().strip()
+            if not model_name:
+                self._post(messagebox.showwarning, "Missing Model", "Please select a model.")
+                return
+
+            num_classes = self._resolve_num_classes()
+            if num_classes <= 0:
+                self._post(messagebox.showwarning, "Missing Classes", "Unable to determine number of classes.")
+                return
+
+            self._post(self._log, f"Building model {model_name}...")
+            model_obj = self._build_model(model_name, num_classes)
+            if model_obj is None:
+                return
+
+            self._post(self._log, f"Training {model_name}...")
+            start = time.time()
+            history = self._train_model(model_name, model_obj)
+            if history is None:
+                return
+            duration = time.time() - start
+
+            self.state.models_dict[model_name] = model_obj
+            self.state.histories[model_name] = history
+            self._refresh_model_options()
+            self._post(self._log, f"{model_name} training finished in {format_time(duration)}.")
+            self._post(messagebox.showinfo, "Training Complete", f"{model_name} training finished.")
+
+        self._run_task("Training model...", task)
+
+    def _on_train_all(self) -> None:
+        def task() -> None:
+            if not self.state.dataset_loaded:
+                self._post(messagebox.showwarning, "Missing Data", "Please load the dataset first.")
+                return
+
+            num_classes = self._resolve_num_classes()
+            if num_classes <= 0:
+                self._post(messagebox.showwarning, "Missing Classes", "Unable to determine number of classes.")
+                return
+
+            for model_name in MODEL_NAMES:
+                self._post(self._log, f"Training {model_name}...")
+                model_obj = self._build_model(model_name, num_classes)
+                if model_obj is None:
+                    continue
+                start = time.time()
+                history = self._train_model(model_name, model_obj)
+                duration = time.time() - start
+                if history is None:
+                    continue
+                self.state.models_dict[model_name] = model_obj
+                self.state.histories[model_name] = history
+                self._post(self._log, f"{model_name} training finished in {format_time(duration)}.")
+
+            self._refresh_model_options()
+            self._post(messagebox.showinfo, "Training Complete", "Finished training all available models.")
+
+        self._run_task("Training all models...", task)
+
+    def _on_evaluate_models(self) -> None:
+        def task() -> None:
+            if not self.state.models_dict:
+                self._post(messagebox.showwarning, "Missing Models", "Please train at least one model first.")
+                return
+
+            if self.state.X_test is None or self.state.y_test is None:
+                self._post(messagebox.showwarning, "Missing Data", "Test data is not available.")
+                return
+
+            results = self._evaluate_models()
+            if results:
+                self.state.evaluation_results.update(results)
+                output_path = save_results_to_json(results, RESULTS_DIR / "evaluation_results.json")
+                self._post(self._log, f"Evaluation results saved to {output_path}")
+                self._post(messagebox.showinfo, "Evaluation Complete", "Evaluation results saved.")
+            else:
+                self._post(messagebox.showwarning, "Evaluation", "No valid evaluation results produced.")
+
+        self._run_task("Evaluating models...", task)
+
+    def _on_predict_single(self) -> None:
+        def task() -> None:
+            model_name = self.predict_model_var.get().strip()
+            if model_name not in self.state.models_dict:
+                self._post(messagebox.showwarning, "Missing Model", "Please train the selected model first.")
+                return
+
+            image_path = Path(self.image_path_var.get().strip())
+            if not image_path.exists():
+                self._post(messagebox.showwarning, "Missing Image", "Please select a valid image path.")
+                return
+
+            try:
+                top_k = max(1, int(self.top_k_var.get().strip()))
+            except ValueError:
+                top_k = TOP_K
+
+            self._post(self._log, f"Predicting {image_path.name} with {model_name}...")
+            prediction = self._predict_single(self.state.models_dict[model_name], image_path, top_k)
+            if prediction is None:
+                return
+
+            self.state.last_prediction = prediction
+            self.state.last_prediction_image = image_path
+            self._post(self._log, f"Prediction result: {prediction}")
+
+            if self.save_distribution_var.get() and isinstance(prediction, dict):
+                probs = prediction.get("probabilities") or prediction.get("probs")
+                if probs is not None:
+                    visualization.plot_prediction_distribution(probs, self._resolve_class_names(), RESULTS_DIR / "last_prediction.png")
+                    self._post(self._log, "Prediction distribution saved.")
+
+            if self.save_overlay_var.get():
+                try:
+                    visualization.display_image_with_prediction(
+                        image_path,
+                        prediction if isinstance(prediction, dict) else {"predicted_class": prediction},
+                        RESULTS_DIR / "prediction_overlay.png",
+                    )
+                    self._post(self._log, "Prediction overlay saved.")
+                except Exception as exc:
+                    logger.error("Failed to render prediction overlay: %s", exc)
+                    self._post(self._log, f"[Error] Prediction overlay failed: {exc}")
+
+            self._post(messagebox.showinfo, "Prediction Complete", "Prediction finished.")
+
+        self._run_task("Predicting image...", task)
+
+    def _on_batch_predict(self) -> None:
+        def task() -> None:
+            model_name = self.predict_model_var.get().strip()
+            if model_name not in self.state.models_dict:
+                self._post(messagebox.showwarning, "Missing Model", "Please train the selected model first.")
+                return
+
+            batch_dir = Path(self.batch_dir_var.get().strip())
+            if not batch_dir.exists():
+                self._post(messagebox.showwarning, "Missing Folder", "Please select a valid batch folder.")
+                return
+
+            image_paths = collect_image_files(batch_dir)
+            if not image_paths:
+                self._post(messagebox.showwarning, "No Images", "No supported images found in the selected folder.")
+                return
+
+            self._post(self._log, f"Batch predicting {len(image_paths)} images...")
+            predictions = self._predict_batch(self.state.models_dict[model_name], image_paths)
+            if predictions is None:
+                return
+
+            output_path = save_results_to_json(
+                {"files": [str(p) for p in image_paths], "predictions": predictions},
+                RESULTS_DIR / "batch_predictions.json",
+            )
+            self._post(self._log, f"Batch predictions saved to {output_path}")
+            self._post(messagebox.showinfo, "Batch Prediction", "Batch predictions saved.")
+
+        self._run_task("Batch prediction...", task)
+
+    def _on_plot_training_history(self) -> None:
+        if not self.state.histories:
+            messagebox.showwarning("Missing Data", "No training history available.")
+            return
+        visualization.plot_training_history(self.state.histories)
+        self._log("Training history plot saved.")
+
+    def _on_plot_confusion_matrix(self) -> None:
+        if not self.state.evaluation_results:
+            messagebox.showwarning("Missing Data", "Please evaluate models first.")
+            return
+        for model_name, metrics in self.state.evaluation_results.items():
+            cm = metrics.get("confusion_matrix") or metrics.get("cm")
+            class_names = metrics.get("class_names") or self._resolve_class_names()
+            if cm is None:
+                self._log(f"[Warning] No confusion matrix for {model_name}.")
+                continue
+            try:
+                visualization.plot_confusion_matrix(cm, class_names, model_name, RESULTS_DIR / f"{model_name}_cm.png")
+                self._log(f"Confusion matrix saved for {model_name}.")
+            except Exception as exc:
+                logger.error("Failed to plot confusion matrix for %s: %s", model_name, exc)
+                self._log(f"[Error] Confusion matrix failed for {model_name}: {exc}")
+
+    def _on_plot_model_comparison(self) -> None:
+        if not self.state.evaluation_results:
+            messagebox.showwarning("Missing Data", "Please evaluate models first.")
+            return
+        visualization.plot_model_comparison(self.state.evaluation_results)
+        self._log("Model comparison plot saved.")
+
+    def _on_plot_prediction_distribution(self) -> None:
+        prediction = self.state.last_prediction
+        if not prediction:
+            messagebox.showwarning("Missing Data", "No prediction results available.")
+            return
+        if isinstance(prediction, dict):
+            probs = prediction.get("probabilities") or prediction.get("probs")
+        else:
+            probs = None
+        if probs is None:
+            messagebox.showwarning("Missing Data", "Prediction probabilities not available.")
+            return
+        visualization.plot_prediction_distribution(probs, self._resolve_class_names(), RESULTS_DIR / "prediction_distribution.png")
+        self._log("Prediction distribution plot saved.")
+
+    def _on_plot_prediction_overlay(self) -> None:
+        if not self.state.last_prediction or not self.state.last_prediction_image:
+            messagebox.showwarning("Missing Data", "No prediction results available.")
+            return
         try:
             visualization.display_image_with_prediction(
-                image_path,
-                prediction if isinstance(prediction, dict) else {"predicted_class": prediction},
+                self.state.last_prediction_image,
+                self.state.last_prediction if isinstance(self.state.last_prediction, dict) else {"predicted_class": self.state.last_prediction},
                 RESULTS_DIR / "prediction_overlay.png",
             )
-            print("Prediction visualization saved.")
+            self._log("Prediction overlay saved.")
         except Exception as exc:
-            logger.error("Failed to visualize prediction: %s", exc)
-            print(f"[Error] Visualization failed: {exc}")
+            logger.error("Failed to render prediction overlay: %s", exc)
+            messagebox.showerror("Error", f"Prediction overlay failed: {exc}")
 
 
-def handle_batch_prediction() -> None:
-    if not app_state.models_dict:
-        print("Please train or load a model first.")
-        return
-    model_name = _select_trained_model()
-    if not model_name:
-        return
-
-    dir_input = input("Enter directory containing images: ").strip().strip('"')
-    if not validate_path(dir_input):
-        return
-    image_paths = collect_image_files(dir_input)
-    if not image_paths:
-        return
-
-    predictions = _predict_batch(app_state.models_dict[model_name], image_paths)
-    if predictions is None:
-        return
-
-    output_path = save_results_to_json(
-        {"files": [str(p) for p in image_paths], "predictions": predictions},
-        RESULTS_DIR / "batch_predictions.json",
-    )
-    print(f"Batch prediction results saved to {output_path}")
-    logger.info("Batch predictions saved to %s", output_path)
-
-
-def _visualization_menu() -> int:
-    print("\nVisualization Menu")
-    print("1. Training curves")
-    print("2. Confusion matrix")
-    print("3. Model comparison")
-    print("4. Prediction distribution")
-    print("5. Back")
-    while True:
-        choice = input("Select: ").strip()
-        if choice in {"1", "2", "3", "4", "5"}:
-            return int(choice)
-        print("Invalid input, please choose again.")
-
-
-def handle_visualization() -> None:
-    while True:
-        choice = _visualization_menu()
-        if choice == 5:
-            break
-        if choice == 1:
-            if not app_state.histories:
-                print("No training history available.")
-                continue
-            visualization.plot_training_history(app_state.histories)
-        elif choice == 2:
-            if not app_state.evaluation_results:
-                print("Please run evaluation first.")
-                continue
-            for model_name, metrics in app_state.evaluation_results.items():
-                cm = metrics.get("confusion_matrix") or metrics.get("cm")
-                class_names = metrics.get("class_names") or app_state.class_names or []
-                if cm is None:
-                    logger.warning("No confusion matrix for %s", model_name)
-                    continue
-                try:
-                    visualization.plot_confusion_matrix(cm, class_names, model_name, RESULTS_DIR / f"{model_name}_cm.png")
-                except Exception as exc:
-                    logger.error("Failed to plot confusion matrix for %s: %s", model_name, exc)
-                    print(f"[Error] Could not plot confusion matrix for {model_name}: {exc}")
-        elif choice == 3:
-            if not app_state.evaluation_results:
-                print("Please run evaluation first.")
-                continue
-            visualization.plot_model_comparison(app_state.evaluation_results)
-        elif choice == 4:
-            if not app_state.last_prediction:
-                print("No prediction available.")
-                continue
-            probs = None
-            class_names = app_state.class_names or []
-            if isinstance(app_state.last_prediction, dict):
-                probs = app_state.last_prediction.get("probabilities") or app_state.last_prediction.get("probs")
-                class_names = app_state.last_prediction.get("class_names", class_names)
-            if probs is None:
-                print("Last prediction does not contain probability distribution.")
-                continue
-            visualization.plot_prediction_distribution(probs, class_names, RESULTS_DIR / "prediction_distribution.png")
-
-
-def handle_single_model_training_for_cli() -> None:
-    """
-    Kept for backward compatibility if other modules import this name.
-    """
-    handle_single_model_training()
+def launch_gui() -> None:
+    create_directories()
+    root = tk.Tk()
+    app = ImageClassifierApp(root)
+    app._log("Application started.")
+    root.mainloop()
 
 
 def main_menu() -> None:
-    create_directories()
-    while True:
-        print_main_menu()
-        choice = get_user_choice()
-        if choice == 1:
-            handle_dataset_loading()
-        elif choice == 2:
-            handle_single_model_training()
-        elif choice == 3:
-            handle_all_models_training()
-        elif choice == 4:
-            handle_model_evaluation()
-        elif choice == 5:
-            handle_single_prediction()
-        elif choice == 6:
-            handle_batch_prediction()
-        elif choice == 7:
-            handle_visualization()
-        elif choice == 8:
-            print("Goodbye!")
-            break
+    """
+    Backward-compatible entry point that launches the Tkinter GUI.
+    """
+    launch_gui()
 
 
-__all__ = [
-    "print_main_menu",
-    "get_user_choice",
-    "handle_dataset_loading",
-    "handle_single_model_training",
-    "handle_all_models_training",
-    "handle_model_evaluation",
-    "handle_single_prediction",
-    "handle_batch_prediction",
-    "handle_visualization",
-    "main_menu",
-]
-
+__all__ = ["ImageClassifierApp", "launch_gui", "main_menu"]
