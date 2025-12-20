@@ -1,566 +1,507 @@
+
 """
-Console user interface for the Image Classification Enhancement System.
+Tkinter GUI for the Image Classification Enhancement System.
 """
 from __future__ import annotations
 
 import importlib
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
-from config import (
-    BATCH_SIZE,
-    DATASET_PATH,
-    EPOCHS,
-    MODEL_NAMES,
-    MODELS_INFO,
-    RESULTS_DIR,
-    TARGET_IMAGE_SIZE,
-    TEST_SIZE,
-    TOP_K,
-    TRAIN_SIZE,
-    VAL_SIZE,
-)
+import tkinter as tk
+from tkinter import filedialog, messagebox, scrolledtext, ttk
+
+from config import DATASET_PATH, RESULTS_DIR, TARGET_IMAGE_SIZE, TOP_K, WEIGHTS_DIR
 from utils import visualization
-from utils.helpers import (
-    collect_image_files,
-    create_directories,
-    format_time,
-    print_section,
-    print_separator,
-    save_results_to_json,
-    validate_path,
-)
+from utils.helpers import collect_image_files, create_directories, save_results_to_json
 from utils.logger import setup_logger
 
 logger = setup_logger("ImageClassifierUI")
 
+WEIGHT_EXTENSIONS = (".h5", ".keras", ".hdf5")
+
 
 @dataclass
 class AppState:
-    dataset_loaded: bool = False
-    X_train: Any = None
-    X_val: Any = None
-    X_test: Any = None
-    y_train: Any = None
-    y_val: Any = None
-    y_test: Any = None
-    train_data: Any = None
-    val_data: Any = None
-    test_data: Any = None
-    class_names: Optional[List[str]] = None
-    models_dict: Dict[str, Any] = field(default_factory=dict)
-    histories: Dict[str, Any] = field(default_factory=dict)
-    evaluation_results: Dict[str, Any] = field(default_factory=dict)
+    model: Any = None
+    model_name: str = ""
+    model_path: Optional[Path] = None
+    class_names: List[str] = field(default_factory=list)
     last_prediction: Any = None
+    last_prediction_image: Optional[Path] = None
 
 
-app_state = AppState()
+class ImageClassifierApp:
+    def __init__(self, root: tk.Tk) -> None:
+        self.root = root
+        self.state = AppState()
+        self._busy = False
+        self._action_buttons: List[ttk.Button] = []
+        self.weights_files: List[Path] = []
 
+        self.dataset_path_var = tk.StringVar(value=str(DATASET_PATH))
+        self.weights_var = tk.StringVar(value="")
+        self.class_names_var = tk.StringVar(value="")
+        self.image_path_var = tk.StringVar(value="")
+        self.batch_dir_var = tk.StringVar(value="")
+        self.top_k_var = tk.StringVar(value=str(TOP_K))
+        self.save_overlay_var = tk.BooleanVar(value=True)
+        self.save_distribution_var = tk.BooleanVar(value=False)
+        self.status_var = tk.StringVar(value="Ready.")
+        self.model_status_var = tk.StringVar(value="No model loaded.")
 
-def print_main_menu() -> None:
-    print("\nImage Classification Enhancement System")
-    print("1. Load and preprocess dataset")
-    print("2. Train a single model")
-    print("3. Train all models")
-    print("4. Evaluate and compare models")
-    print("5. Predict a single image")
-    print("6. Batch prediction")
-    print("7. Visualizations")
-    print("8. Exit")
+        self.log_text: Optional[scrolledtext.ScrolledText] = None
+        self.progress: Optional[ttk.Progressbar] = None
+        self.weights_combo: Optional[ttk.Combobox] = None
+        self.load_model_btn: Optional[ttk.Button] = None
 
+        self._build_ui()
+        self._refresh_weights()
 
-def get_user_choice() -> int:
-    while True:
-        try:
-            choice = int(input("Enter choice (1-8): ").strip())
-            if 1 <= choice <= 8:
-                return choice
-        except ValueError:
-            pass
-        print("Invalid input. Please enter a number between 1 and 8.")
+    def _build_ui(self) -> None:
+        self.root.title("Image Classification Enhancement System")
+        self.root.geometry("1100x720")
+        self.root.minsize(1000, 680)
 
+        style = ttk.Style(self.root)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
 
-def _import_optional(module_name: str, friendly_name: str) -> Optional[Any]:
-    try:
-        return importlib.import_module(module_name)
-    except ModuleNotFoundError:
-        print(f"[Error] Missing {friendly_name} module: {module_name}")
-        logger.error("%s module not found: %s", friendly_name, module_name)
-    except Exception as exc:
-        print(f"[Error] Failed to import {friendly_name}: {exc}")
-        logger.error("Failed to import %s (%s): %s", friendly_name, module_name, exc)
-    return None
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
+        main_frame = ttk.Frame(self.root, padding=12)
+        main_frame.grid(row=0, column=0, sticky="nsew")
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+        main_frame.rowconfigure(0, weight=1)
 
-def _build_model(model_name: str, input_shape: Any, num_classes: int) -> Optional[Any]:
-    arch_module = _import_optional("models.model_architecture", "model architecture")
-    if arch_module is None:
-        return None
+        left_frame = ttk.Frame(main_frame)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        left_frame.columnconfigure(0, weight=1)
 
-    for fn_name in ("get_model", "build_model", "create_model"):
-        if hasattr(arch_module, fn_name):
-            builder = getattr(arch_module, fn_name)
-            try:
-                return builder(model_name=model_name, input_shape=input_shape, num_classes=num_classes)
-            except TypeError:
-                try:
-                    return builder(model_name, input_shape, num_classes)
-                except Exception as exc:
-                    logger.error("Error when building model using %s: %s", fn_name, exc)
-                    print(f"[Error] Failed to build model: {exc}")
-                    return None
-    print("[Error] Missing model build function (get_model/build_model/create_model).")
-    logger.error("Model build function missing in model_architecture.")
-    return None
+        right_frame = ttk.Frame(main_frame)
+        right_frame.grid(row=0, column=1, sticky="nsew")
+        right_frame.columnconfigure(0, weight=1)
+        right_frame.rowconfigure(0, weight=1)
 
-
-def _train_model(model_name: str, model_obj: Any) -> Optional[Any]:
-    trainer = _import_optional("models.train", "training")
-    if trainer is None:
-        return None
-
-    train_kwargs = dict(
-        model=model_obj,
-        model_name=model_name,
-        X_train=app_state.X_train,
-        y_train=app_state.y_train,
-        X_val=app_state.X_val,
-        y_val=app_state.y_val,
-        train_data=app_state.train_data,
-        val_data=app_state.val_data,
-        epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
-    )
-
-    for fn_name in ("train_model", "train", "fit_model"):
-        if hasattr(trainer, fn_name):
-            fn = getattr(trainer, fn_name)
-            try:
-                return fn(**train_kwargs)
-            except TypeError:
-                try:
-                    return fn(
-                        model_obj,
-                        app_state.train_data or app_state.X_train,
-                        app_state.y_train,
-                        app_state.val_data or app_state.X_val,
-                        app_state.y_val,
-                    )
-                except Exception as exc:
-                    logger.error("Training failed with %s: %s", fn_name, exc)
-                    print(f"[Error] Training failed: {exc}")
-                    return None
-    print("[Error] Missing training function (train_model/train/fit_model).")
-    logger.error("Train function missing in models.train.")
-    return None
-
-
-def _evaluate_model(model_name: str, model_obj: Any) -> Optional[Dict[str, Any]]:
-    evaluator = _import_optional("models.evaluate", "evaluation") or _import_optional("models.evaluation", "evaluation")
-    if evaluator is None:
-        return None
-
-    eval_kwargs = dict(
-        model=model_obj,
-        model_name=model_name,
-        X_test=app_state.X_test,
-        y_test=app_state.y_test,
-        test_data=app_state.test_data,
-    )
-
-    for fn_name in ("evaluate_model", "evaluate", "run_evaluation"):
-        if hasattr(evaluator, fn_name):
-            fn = getattr(evaluator, fn_name)
-            try:
-                return fn(**eval_kwargs)
-            except TypeError:
-                try:
-                    return fn(model_obj, app_state.X_test, app_state.y_test)
-                except Exception as exc:
-                    logger.error("Evaluation failed with %s: %s", fn_name, exc)
-                    print(f"[Error] Evaluation failed: {exc}")
-                    return None
-    print("[Error] Missing evaluation function (evaluate_model/evaluate/run_evaluation).")
-    logger.error("Evaluation function missing in models.evaluate.")
-    return None
-
-
-def _predict_single(model_obj: Any, image_path: Path) -> Optional[Any]:
-    predict_module = _import_optional("predict.inference", "prediction") or _import_optional("predict.predictor", "prediction")
-    if predict_module is None:
-        return None
-
-    candidates = ("predict_single", "predict_image", "run_inference", "predict_one", "predict")
-    for fn_name in candidates:
-        if hasattr(predict_module, fn_name):
-            fn = getattr(predict_module, fn_name)
-            try:
-                return fn(model_obj, image_path)
-            except TypeError:
-                try:
-                    return fn(image_path)
-                except Exception as exc:
-                    logger.error("Prediction failed with %s: %s", fn_name, exc)
-                    print(f"[Error] Prediction failed: {exc}")
-                    return None
-    print("[Error] No prediction function found.")
-    logger.error("No prediction function found in predict module.")
-    return None
-
-
-def _predict_batch(model_obj: Any, image_paths: List[Path]) -> Optional[Any]:
-    predict_module = _import_optional("predict.inference", "prediction") or _import_optional("predict.predictor", "prediction")
-    if predict_module is None:
-        return None
-
-    candidates = ("predict_batch", "batch_predict", "predict_directory")
-    for fn_name in candidates:
-        if hasattr(predict_module, fn_name):
-            fn = getattr(predict_module, fn_name)
-            try:
-                return fn(model_obj, image_paths)
-            except TypeError:
-                try:
-                    return fn(image_paths)
-                except Exception as exc:
-                    logger.error("Batch prediction failed with %s: %s", fn_name, exc)
-                    print(f"[Error] Batch prediction failed: {exc}")
-                    return None
-    print("[Error] No batch prediction function found.")
-    logger.error("No batch prediction function found in predict module.")
-    return None
-
-
-def handle_dataset_loading() -> None:
-    print_section("Load and preprocess dataset")
-    data_module = _import_optional("data.preprocessing", "data preprocessing")
-    if data_module is None:
-        return
-
-    if not hasattr(data_module, "prepare_dataset"):
-        print("[Error] Missing function data.preprocessing.prepare_dataset")
-        logger.error("prepare_dataset not found in data.preprocessing")
-        return
-
-    try:
-        result = data_module.prepare_dataset(
-            DATASET_PATH,
-            train_size=TRAIN_SIZE,
-            val_size=VAL_SIZE,
-            test_size=TEST_SIZE,
-            target_size=TARGET_IMAGE_SIZE,
+        title_label = ttk.Label(
+            left_frame,
+            text="Image Classification Enhancement System",
+            font=("Segoe UI", 14, "bold"),
         )
-    except Exception as exc:
-        print(f"[Error] Dataset loading failed: {exc}")
-        logger.error("Dataset loading failed: %s", exc)
-        return
+        title_label.grid(row=0, column=0, sticky="w", pady=(0, 10))
 
-    if isinstance(result, dict):
-        app_state.X_train = result.get("X_train")
-        app_state.X_val = result.get("X_val")
-        app_state.X_test = result.get("X_test")
-        app_state.y_train = result.get("y_train")
-        app_state.y_val = result.get("y_val")
-        app_state.y_test = result.get("y_test")
-        app_state.train_data = result.get("train_data")
-        app_state.val_data = result.get("val_data")
-        app_state.test_data = result.get("test_data")
-        app_state.class_names = result.get("class_names")
-    elif isinstance(result, (list, tuple)) and len(result) >= 6:
-        app_state.X_train, app_state.X_val, app_state.X_test, app_state.y_train, app_state.y_val, app_state.y_test = result[:6]
-        if len(result) >= 7:
-            app_state.class_names = result[6]
-    else:
-        print("[Warning] Unrecognized return format; data may not have loaded correctly.")
-        logger.warning("Unrecognized dataset return format: %s", type(result))
-        return
+        prediction_frame = ttk.LabelFrame(left_frame, text="Prediction")
+        prediction_frame.grid(row=1, column=0, sticky="ew", pady=6)
+        prediction_frame.columnconfigure(1, weight=1)
+        ttk.Label(prediction_frame, text="Weights file:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
+        self.weights_combo = ttk.Combobox(prediction_frame, textvariable=self.weights_var, values=[], state="readonly")
+        self.weights_combo.grid(row=0, column=1, sticky="ew", padx=6, pady=4)
+        ttk.Button(prediction_frame, text="Browse", command=self._browse_weights).grid(row=0, column=2, padx=6, pady=4)
+        ttk.Button(prediction_frame, text="Refresh", command=self._refresh_weights).grid(row=0, column=3, padx=6, pady=4)
 
-    app_state.dataset_loaded = True
-    print("Dataset loaded.")
-    logger.info("Dataset loaded successfully.")
+        self.load_model_btn = ttk.Button(prediction_frame, text="Load Model", command=self._on_load_model)
+        self.load_model_btn.grid(row=1, column=0, columnspan=4, sticky="ew", padx=6, pady=4)
+        ttk.Label(prediction_frame, textvariable=self.model_status_var).grid(row=2, column=0, columnspan=4, sticky="w", padx=6, pady=(0, 6))
 
+        ttk.Label(prediction_frame, text="Top-K:").grid(row=3, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(prediction_frame, textvariable=self.top_k_var, width=6).grid(row=3, column=1, sticky="w", padx=6, pady=4)
+        ttk.Checkbutton(prediction_frame, text="Save overlay image", variable=self.save_overlay_var).grid(row=3, column=2, sticky="w", padx=6, pady=4)
+        ttk.Checkbutton(prediction_frame, text="Save prediction distribution", variable=self.save_distribution_var).grid(row=3, column=3, sticky="w", padx=6, pady=4)
 
-def _choose_model_name() -> Optional[str]:
-    print("Available models:")
-    for idx, name in enumerate(MODEL_NAMES, 1):
-        info = MODELS_INFO.get(name, {})
-        desc = info.get("description", "")
-        print(f"{idx}. {name} ({desc})")
-    selection = input("Select model number: ").strip()
-    if not selection.isdigit():
-        print("Invalid input.")
+        ttk.Label(prediction_frame, text="Image path:").grid(row=4, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(prediction_frame, textvariable=self.image_path_var).grid(row=4, column=1, columnspan=2, sticky="ew", padx=6, pady=4)
+        ttk.Button(prediction_frame, text="Browse", command=self._browse_image).grid(row=4, column=3, padx=6, pady=4)
+        predict_btn = ttk.Button(prediction_frame, text="Predict Image", command=self._on_predict_single)
+        predict_btn.grid(row=5, column=0, columnspan=4, sticky="ew", padx=6, pady=4)
+
+        ttk.Label(prediction_frame, text="Batch folder:").grid(row=6, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(prediction_frame, textvariable=self.batch_dir_var).grid(row=6, column=1, columnspan=2, sticky="ew", padx=6, pady=4)
+        ttk.Button(prediction_frame, text="Browse", command=self._browse_batch_dir).grid(row=6, column=3, padx=6, pady=4)
+        batch_btn = ttk.Button(prediction_frame, text="Batch Predict", command=self._on_batch_predict)
+        batch_btn.grid(row=7, column=0, columnspan=4, sticky="ew", padx=6, pady=4)
+        self._action_buttons.extend([self.load_model_btn, predict_btn, batch_btn])
+
+        class_frame = ttk.LabelFrame(left_frame, text="Class Names")
+        class_frame.grid(row=2, column=0, sticky="ew", pady=6)
+        class_frame.columnconfigure(1, weight=1)
+        ttk.Label(class_frame, text="Dataset path:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(class_frame, textvariable=self.dataset_path_var).grid(row=0, column=1, sticky="ew", padx=6, pady=4)
+        ttk.Button(class_frame, text="Detect", command=self._detect_class_names).grid(row=0, column=2, padx=6, pady=4)
+
+        ttk.Label(class_frame, text="Classes (comma-separated):").grid(row=1, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(class_frame, textvariable=self.class_names_var).grid(row=1, column=1, columnspan=2, sticky="ew", padx=6, pady=4)
+
+        viz_frame = ttk.LabelFrame(left_frame, text="Visualization")
+        viz_frame.grid(row=3, column=0, sticky="ew", pady=6)
+        viz_frame.columnconfigure(0, weight=1)
+        viz_buttons = [
+            ("Prediction Distribution", self._on_plot_prediction_distribution),
+            ("Prediction Overlay", self._on_plot_prediction_overlay),
+        ]
+        for idx, (label, handler) in enumerate(viz_buttons):
+            btn = ttk.Button(viz_frame, text=label, command=handler)
+            btn.grid(row=idx, column=0, sticky="ew", padx=6, pady=3)
+            self._action_buttons.append(btn)
+
+        log_frame = ttk.LabelFrame(right_frame, text="Activity Log")
+        log_frame.grid(row=0, column=0, sticky="nsew")
+        log_frame.columnconfigure(0, weight=1)
+        log_frame.rowconfigure(0, weight=1)
+        self.log_text = scrolledtext.ScrolledText(log_frame, wrap="word", height=30, state="disabled")
+        self.log_text.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
+        clear_btn = ttk.Button(log_frame, text="Clear Log", command=self._clear_log)
+        clear_btn.grid(row=1, column=0, sticky="e", padx=6, pady=(0, 6))
+
+        status_frame = ttk.Frame(self.root, padding=(12, 0, 12, 12))
+        status_frame.grid(row=1, column=0, sticky="ew")
+        status_frame.columnconfigure(0, weight=1)
+        self.progress = ttk.Progressbar(status_frame, mode="indeterminate")
+        self.progress.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        ttk.Label(status_frame, textvariable=self.status_var).grid(row=0, column=1, sticky="e")
+
+    def _browse_weights(self) -> None:
+        weights_dir = WEIGHTS_DIR.resolve()
+        path = filedialog.askopenfilename(
+            title="Select Weights File",
+            initialdir=str(weights_dir),
+            filetypes=[("Weights", "*.h5 *.keras *.hdf5"), ("All Files", "*.*")],
+        )
+        if path:
+            selected = Path(path).resolve()
+            if selected.parent != weights_dir:
+                messagebox.showwarning("Invalid Location", "Please select a weights file from the weights folder.")
+                return
+            self.weights_var.set(selected.name)
+
+    def _browse_image(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Select Image",
+            filetypes=[("Image Files", "*.jpg *.jpeg *.png *.bmp"), ("All Files", "*.*")],
+        )
+        if path:
+            self.image_path_var.set(path)
+
+    def _browse_batch_dir(self) -> None:
+        path = filedialog.askdirectory(title="Select Batch Folder")
+        if path:
+            self.batch_dir_var.set(path)
+
+    def _clear_log(self) -> None:
+        if self.log_text is None:
+            return
+        self.log_text.configure(state="normal")
+        self.log_text.delete("1.0", "end")
+        self.log_text.configure(state="disabled")
+
+    def _log(self, message: str) -> None:
+        if self.log_text is None:
+            return
+        timestamp = time.strftime("%H:%M:%S")
+        self.log_text.configure(state="normal")
+        self.log_text.insert("end", f"[{timestamp}] {message}\n")
+        self.log_text.configure(state="disabled")
+        self.log_text.see("end")
+
+    def _set_status(self, message: str) -> None:
+        self.status_var.set(message)
+
+    def _set_busy(self, busy: bool, message: Optional[str] = None) -> None:
+        self._busy = busy
+        for btn in self._action_buttons:
+            btn.configure(state="disabled" if busy else "normal")
+        if self.progress:
+            if busy:
+                self.progress.start(10)
+            else:
+                self.progress.stop()
+        if message:
+            self._set_status(message)
+        elif not busy:
+            self._set_status("Ready.")
+
+    def _post(self, func, *args, **kwargs) -> None:
+        self.root.after(0, lambda: func(*args, **kwargs))
+
+    def _run_task(self, label: str, func) -> None:
+        if self._busy:
+            messagebox.showinfo("Busy", "An operation is already running.")
+            return
+
+        def worker() -> None:
+            self._post(self._set_busy, True, label)
+            try:
+                func()
+            except Exception as exc:
+                logger.error("Operation failed: %s", exc)
+                self._post(messagebox.showerror, "Error", str(exc))
+            finally:
+                self._post(self._set_busy, False, None)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _import_optional(self, module_name: str, friendly_name: str) -> Optional[Any]:
+        try:
+            return importlib.import_module(module_name)
+        except ModuleNotFoundError:
+            self._post(self._log, f"[Error] Missing {friendly_name} module: {module_name}")
+            logger.error("%s module not found: %s", friendly_name, module_name)
+        except Exception as exc:
+            self._post(self._log, f"[Error] Failed to import {friendly_name}: {exc}")
+            logger.error("Failed to import %s (%s): %s", friendly_name, module_name, exc)
         return None
-    index = int(selection)
-    if 1 <= index <= len(MODEL_NAMES):
-        return MODEL_NAMES[index - 1]
-    print("Selection out of range.")
-    return None
 
+    def _refresh_weights(self) -> None:
+        weights_dir = WEIGHTS_DIR
+        if not weights_dir.exists():
+            weights_dir.mkdir(parents=True, exist_ok=True)
 
-def _resolve_input_shape() -> Any:
-    height, width = TARGET_IMAGE_SIZE
-    return (height, width, 3)
+        self.weights_files = sorted([p for p in weights_dir.iterdir() if p.suffix.lower() in WEIGHT_EXTENSIONS])
+        names = [p.name for p in self.weights_files]
+        if self.weights_combo is not None:
+            self.weights_combo.configure(values=names)
+        if names:
+            if not self.weights_var.get() or self.weights_var.get() not in names:
+                self.weights_var.set(names[0])
+            if self.load_model_btn is not None:
+                self.load_model_btn.configure(state="normal")
+        else:
+            self.weights_var.set("")
+            if self.load_model_btn is not None:
+                self.load_model_btn.configure(state="disabled")
+            self._log("No weights files found in the weights folder.")
 
+    def _detect_class_names(self) -> None:
+        dataset_path = Path(self.dataset_path_var.get().strip())
+        if not dataset_path.exists():
+            messagebox.showwarning("Missing Path", f"Dataset path does not exist: {dataset_path}")
+            return
+        class_names = sorted([p.name for p in dataset_path.iterdir() if p.is_dir()])
+        if not class_names:
+            messagebox.showwarning("No Classes", "No class folders found in the dataset path.")
+            return
+        self.state.class_names = class_names
+        self.class_names_var.set(", ".join(class_names))
+        self._log(f"Detected class names: {class_names}")
 
-def handle_single_model_training() -> None:
-    if not app_state.dataset_loaded:
-        print("Please load the dataset first (option 1).")
-        return
-    model_name = _choose_model_name()
-    if not model_name:
-        return
+    def _resolve_class_names(self) -> List[str]:
+        raw = self.class_names_var.get().strip()
+        if raw:
+            names = [name.strip() for name in raw.split(",") if name.strip()]
+            self.state.class_names = names
+            return names
+        if self.state.class_names:
+            return list(self.state.class_names)
+        dataset_path = Path(self.dataset_path_var.get().strip())
+        if dataset_path.exists():
+            names = sorted([p.name for p in dataset_path.iterdir() if p.is_dir()])
+            if names:
+                self.state.class_names = names
+                self.class_names_var.set(", ".join(names))
+                return names
+        return []
 
-    num_classes = len(app_state.class_names) if app_state.class_names else 0
-    model_obj = _build_model(model_name, _resolve_input_shape(), num_classes)
-    if model_obj is None:
-        return
+    def _load_model_from_weights(self, weights_path: Path) -> Optional[Any]:
+        inference = self._import_optional("predict.inference", "prediction")
+        if inference is None:
+            return None
+        model_name = weights_path.stem
+        try:
+            model = inference.load_model(model_name, str(weights_path))
+        except Exception as exc:
+            logger.error("Failed to load model: %s", exc)
+            self._post(messagebox.showerror, "Error", f"Failed to load model: {exc}")
+            return None
+        self.state.model = model
+        self.state.model_name = model_name
+        self.state.model_path = weights_path
+        self.model_status_var.set(f"Loaded: {model_name} ({weights_path.name})")
+        self._log(f"Loaded model from {weights_path}")
+        return model
 
-    start = time.time()
-    history = _train_model(model_name, model_obj)
-    duration = time.time() - start
-    if history is None:
-        print("Training did not complete.")
-        return
+    def _predict_single(self, image_path: Path, top_k: int) -> Optional[Any]:
+        inference = self._import_optional("predict.inference", "prediction")
+        if inference is None:
+            return None
+        class_names = self._resolve_class_names()
+        if not class_names:
+            self._post(messagebox.showwarning, "Missing Classes", "Class names are required for prediction.")
+            return None
+        if self.state.model is None:
+            self._post(messagebox.showwarning, "Missing Model", "Please load a model first.")
+            return None
 
-    app_state.models_dict[model_name] = model_obj
-    app_state.histories[model_name] = history
-    print(f"{model_name} training finished in {format_time(duration)}.")
-    logger.info("Training finished for %s in %s seconds", model_name, round(duration, 2))
+        try:
+            result = inference.predict_single_image(self.state.model, str(image_path), class_names, top_k=top_k)
+        except Exception as exc:
+            logger.error("Prediction failed: %s", exc)
+            self._post(self._log, f"[Error] Prediction failed: {exc}")
+            return None
 
+        if "probabilities" not in result and hasattr(inference, "preprocess_input_image"):
+            try:
+                img_array = inference.preprocess_input_image(str(image_path), target_size=TARGET_IMAGE_SIZE)
+                probs = self.state.model.predict(img_array, verbose=0)[0]
+                result["probabilities"] = probs
+                result["class_names"] = class_names
+            except Exception as exc:
+                logger.warning("Failed to compute probabilities: %s", exc)
 
-def handle_all_models_training() -> None:
-    if not app_state.dataset_loaded:
-        print("Please load the dataset first (option 1).")
-        return
-    for model_name in MODEL_NAMES:
-        print_separator(f"Training model: {model_name}")
-        handle_single_model_training_for(model_name)
+        return result
 
+    def _predict_batch(self, image_paths: Sequence[Path]) -> Optional[Any]:
+        inference = self._import_optional("predict.inference", "prediction")
+        if inference is None:
+            return None
+        class_names = self._resolve_class_names()
+        if not class_names:
+            self._post(messagebox.showwarning, "Missing Classes", "Class names are required for prediction.")
+            return None
+        if self.state.model is None:
+            self._post(messagebox.showwarning, "Missing Model", "Please load a model first.")
+            return None
 
-def handle_single_model_training_for(model_name: str) -> None:
-    num_classes = len(app_state.class_names) if app_state.class_names else 0
-    model_obj = _build_model(model_name, _resolve_input_shape(), num_classes)
-    if model_obj is None:
-        return
-    start = time.time()
-    history = _train_model(model_name, model_obj)
-    duration = time.time() - start
-    if history is None:
-        return
-    app_state.models_dict[model_name] = model_obj
-    app_state.histories[model_name] = history
-    print(f"{model_name} training finished in {format_time(duration)}.")
-    logger.info("Training finished for %s in %s seconds", model_name, round(duration, 2))
+        try:
+            return inference.predict_batch(self.state.model, [str(p) for p in image_paths], class_names)
+        except Exception as exc:
+            logger.error("Batch prediction failed: %s", exc)
+            self._post(self._log, f"[Error] Batch prediction failed: {exc}")
+            return None
 
+    def _on_load_model(self) -> None:
+        def task() -> None:
+            weights_name = self.weights_var.get().strip()
+            if not weights_name:
+                self._post(messagebox.showwarning, "Missing Weights", "Please select a weights file.")
+                return
+            weights_path = WEIGHTS_DIR / weights_name
+            if not weights_path.exists():
+                self._post(messagebox.showwarning, "Missing Weights", f"Weights file not found: {weights_path}")
+                return
+            self._load_model_from_weights(weights_path)
+            self._post(messagebox.showinfo, "Model Loaded", "Model loaded successfully.")
 
-def handle_model_evaluation() -> None:
-    if not app_state.models_dict:
-        print("Please train at least one model first.")
-        return
+        self._run_task("Loading model...", task)
 
-    results: Dict[str, Any] = {}
-    for model_name, model_obj in app_state.models_dict.items():
-        print_separator(f"Evaluating model: {model_name}")
-        metrics = _evaluate_model(model_name, model_obj)
-        if metrics is None:
-            continue
-        results[model_name] = metrics
-        print(f"{model_name} evaluation: {metrics}")
+    def _on_predict_single(self) -> None:
+        def task() -> None:
+            image_path = Path(self.image_path_var.get().strip())
+            if not image_path.exists():
+                self._post(messagebox.showwarning, "Missing Image", "Please select a valid image path.")
+                return
+            try:
+                top_k = max(1, int(self.top_k_var.get().strip()))
+            except ValueError:
+                top_k = TOP_K
 
-    if results:
-        app_state.evaluation_results.update(results)
-        output_path = save_results_to_json(results, RESULTS_DIR / "evaluation_results.json")
-        print(f"Evaluation results saved to {output_path}")
-        logger.info("Evaluation results saved to %s", output_path)
-    else:
-        print("No valid evaluation results produced.")
+            self._post(self._log, f"Predicting {image_path.name}...")
+            prediction = self._predict_single(image_path, top_k)
+            if prediction is None:
+                return
 
+            self.state.last_prediction = prediction
+            self.state.last_prediction_image = image_path
+            self._post(self._log, f"Prediction result: {prediction}")
 
-def _select_trained_model() -> Optional[str]:
-    if not app_state.models_dict:
-        print("No trained models available.")
-        return None
-    names = list(app_state.models_dict.keys())
-    for idx, name in enumerate(names, 1):
-        print(f"{idx}. {name}")
-    choice = input("Select model number: ").strip()
-    if choice.isdigit():
-        index = int(choice)
-        if 1 <= index <= len(names):
-            return names[index - 1]
-    print("Invalid selection.")
-    return None
+            if self.save_distribution_var.get() and isinstance(prediction, dict):
+                probs = prediction.get("probabilities")
+                class_names = prediction.get("class_names") or self._resolve_class_names()
+                if probs is not None:
+                    visualization.plot_prediction_distribution(probs, class_names, RESULTS_DIR / "last_prediction.png")
+                    self._post(self._log, "Prediction distribution saved.")
 
+            if self.save_overlay_var.get():
+                try:
+                    visualization.display_image_with_prediction(
+                        image_path,
+                        prediction if isinstance(prediction, dict) else {"predicted_class": prediction},
+                        RESULTS_DIR / "prediction_overlay.png",
+                    )
+                    self._post(self._log, "Prediction overlay saved.")
+                except Exception as exc:
+                    logger.error("Failed to render prediction overlay: %s", exc)
+                    self._post(self._log, f"[Error] Prediction overlay failed: {exc}")
 
-def handle_single_prediction() -> None:
-    if not app_state.models_dict:
-        print("Please train or load a model first.")
-        return
-    model_name = _select_trained_model()
-    if not model_name:
-        return
-    image_input = input("Enter image path: ").strip().strip('"')
-    image_path = Path(image_input)
-    if not validate_path(image_path):
-        return
+            self._post(messagebox.showinfo, "Prediction Complete", "Prediction finished.")
 
-    prediction = _predict_single(app_state.models_dict[model_name], image_path)
-    if prediction is None:
-        return
+        self._run_task("Predicting image...", task)
 
-    app_state.last_prediction = prediction
-    print(f"Prediction result: {prediction}")
-    if isinstance(prediction, dict) and prediction.get("top_k_predictions"):
-        top_items = prediction["top_k_predictions"][:TOP_K]
-        print("Top-K predictions:")
-        for label, score in top_items:
-            print(f"- {label}: {score}")
-    if isinstance(prediction, dict) and "probabilities" in prediction:
-        probs = prediction["probabilities"]
-        class_names = prediction.get("class_names", app_state.class_names or [])
-        visualization.plot_prediction_distribution(probs, class_names, RESULTS_DIR / "last_prediction.png")
-    if input("Generate image with prediction overlay? (y/n): ").strip().lower() == "y":
+    def _on_batch_predict(self) -> None:
+        def task() -> None:
+            batch_dir = Path(self.batch_dir_var.get().strip())
+            if not batch_dir.exists():
+                self._post(messagebox.showwarning, "Missing Folder", "Please select a valid batch folder.")
+                return
+
+            image_paths = collect_image_files(batch_dir)
+            if not image_paths:
+                self._post(messagebox.showwarning, "No Images", "No supported images found in the selected folder.")
+                return
+
+            self._post(self._log, f"Batch predicting {len(image_paths)} images...")
+            predictions = self._predict_batch(image_paths)
+            if predictions is None:
+                return
+
+            output_path = save_results_to_json(
+                {"files": [str(p) for p in image_paths], "predictions": predictions},
+                RESULTS_DIR / "batch_predictions.json",
+            )
+            self._post(self._log, f"Batch predictions saved to {output_path}")
+            self._post(messagebox.showinfo, "Batch Prediction", "Batch predictions saved.")
+
+        self._run_task("Batch prediction...", task)
+
+    def _on_plot_prediction_distribution(self) -> None:
+        prediction = self.state.last_prediction
+        if not prediction:
+            messagebox.showwarning("Missing Data", "No prediction results available.")
+            return
+        if isinstance(prediction, dict):
+            probs = prediction.get("probabilities")
+            class_names = prediction.get("class_names") or self._resolve_class_names()
+        else:
+            probs = None
+            class_names = self._resolve_class_names()
+        if probs is None:
+            messagebox.showwarning("Missing Data", "Prediction probabilities not available.")
+            return
+        visualization.plot_prediction_distribution(probs, class_names, RESULTS_DIR / "prediction_distribution.png")
+        self._log("Prediction distribution plot saved.")
+
+    def _on_plot_prediction_overlay(self) -> None:
+        if not self.state.last_prediction or not self.state.last_prediction_image:
+            messagebox.showwarning("Missing Data", "No prediction results available.")
+            return
         try:
             visualization.display_image_with_prediction(
-                image_path,
-                prediction if isinstance(prediction, dict) else {"predicted_class": prediction},
+                self.state.last_prediction_image,
+                self.state.last_prediction if isinstance(self.state.last_prediction, dict) else {"predicted_class": self.state.last_prediction},
                 RESULTS_DIR / "prediction_overlay.png",
             )
-            print("Prediction visualization saved.")
+            self._log("Prediction overlay saved.")
         except Exception as exc:
-            logger.error("Failed to visualize prediction: %s", exc)
-            print(f"[Error] Visualization failed: {exc}")
+            logger.error("Failed to render prediction overlay: %s", exc)
+            messagebox.showerror("Error", f"Prediction overlay failed: {exc}")
 
 
-def handle_batch_prediction() -> None:
-    if not app_state.models_dict:
-        print("Please train or load a model first.")
-        return
-    model_name = _select_trained_model()
-    if not model_name:
-        return
-
-    dir_input = input("Enter directory containing images: ").strip().strip('"')
-    if not validate_path(dir_input):
-        return
-    image_paths = collect_image_files(dir_input)
-    if not image_paths:
-        return
-
-    predictions = _predict_batch(app_state.models_dict[model_name], image_paths)
-    if predictions is None:
-        return
-
-    output_path = save_results_to_json(
-        {"files": [str(p) for p in image_paths], "predictions": predictions},
-        RESULTS_DIR / "batch_predictions.json",
-    )
-    print(f"Batch prediction results saved to {output_path}")
-    logger.info("Batch predictions saved to %s", output_path)
-
-
-def _visualization_menu() -> int:
-    print("\nVisualization Menu")
-    print("1. Training curves")
-    print("2. Confusion matrix")
-    print("3. Model comparison")
-    print("4. Prediction distribution")
-    print("5. Back")
-    while True:
-        choice = input("Select: ").strip()
-        if choice in {"1", "2", "3", "4", "5"}:
-            return int(choice)
-        print("Invalid input, please choose again.")
-
-
-def handle_visualization() -> None:
-    while True:
-        choice = _visualization_menu()
-        if choice == 5:
-            break
-        if choice == 1:
-            if not app_state.histories:
-                print("No training history available.")
-                continue
-            visualization.plot_training_history(app_state.histories)
-        elif choice == 2:
-            if not app_state.evaluation_results:
-                print("Please run evaluation first.")
-                continue
-            for model_name, metrics in app_state.evaluation_results.items():
-                cm = metrics.get("confusion_matrix") or metrics.get("cm")
-                class_names = metrics.get("class_names") or app_state.class_names or []
-                if cm is None:
-                    logger.warning("No confusion matrix for %s", model_name)
-                    continue
-                try:
-                    visualization.plot_confusion_matrix(cm, class_names, model_name, RESULTS_DIR / f"{model_name}_cm.png")
-                except Exception as exc:
-                    logger.error("Failed to plot confusion matrix for %s: %s", model_name, exc)
-                    print(f"[Error] Could not plot confusion matrix for {model_name}: {exc}")
-        elif choice == 3:
-            if not app_state.evaluation_results:
-                print("Please run evaluation first.")
-                continue
-            visualization.plot_model_comparison(app_state.evaluation_results)
-        elif choice == 4:
-            if not app_state.last_prediction:
-                print("No prediction available.")
-                continue
-            probs = None
-            class_names = app_state.class_names or []
-            if isinstance(app_state.last_prediction, dict):
-                probs = app_state.last_prediction.get("probabilities") or app_state.last_prediction.get("probs")
-                class_names = app_state.last_prediction.get("class_names", class_names)
-            if probs is None:
-                print("Last prediction does not contain probability distribution.")
-                continue
-            visualization.plot_prediction_distribution(probs, class_names, RESULTS_DIR / "prediction_distribution.png")
-
-
-def handle_single_model_training_for_cli() -> None:
-    """
-    Kept for backward compatibility if other modules import this name.
-    """
-    handle_single_model_training()
+def launch_gui() -> None:
+    create_directories()
+    root = tk.Tk()
+    app = ImageClassifierApp(root)
+    app._log("Application started.")
+    root.mainloop()
 
 
 def main_menu() -> None:
-    create_directories()
-    while True:
-        print_main_menu()
-        choice = get_user_choice()
-        if choice == 1:
-            handle_dataset_loading()
-        elif choice == 2:
-            handle_single_model_training()
-        elif choice == 3:
-            handle_all_models_training()
-        elif choice == 4:
-            handle_model_evaluation()
-        elif choice == 5:
-            handle_single_prediction()
-        elif choice == 6:
-            handle_batch_prediction()
-        elif choice == 7:
-            handle_visualization()
-        elif choice == 8:
-            print("Goodbye!")
-            break
+    """
+    Backward-compatible entry point that launches the Tkinter GUI.
+    """
+    launch_gui()
 
 
-__all__ = [
-    "print_main_menu",
-    "get_user_choice",
-    "handle_dataset_loading",
-    "handle_single_model_training",
-    "handle_all_models_training",
-    "handle_model_evaluation",
-    "handle_single_prediction",
-    "handle_batch_prediction",
-    "handle_visualization",
-    "main_menu",
-]
-
+__all__ = ["ImageClassifierApp", "launch_gui", "main_menu"]
