@@ -19,40 +19,22 @@ except ImportError:
 
 
 def load_model(model_name: str, weights_path: str) -> keras.Model:
-    """
-    Load trained Keras model.
-    
-    Args:
-        model_name: Model name (VGG16/ResNet50/MobileNetV2)
-        weights_path: Path to model weights file (.h5)
-    
-    Returns:
-        Loaded Keras model
-    """
+
+    """Load trained Keras model."""
     if not os.path.exists(weights_path):
         raise FileNotFoundError(f"Weights file not found: {weights_path}")
     
     try:
         model = keras.models.load_model(weights_path)
-        print(f"✓ Successfully loaded {model_name}")
+        print(f"Successfully loaded {model_name}")
         return model
     except Exception as e:
         raise Exception(f"Failed to load model: {str(e)}")
 
 
 def preprocess_input_image(image_path: str, target_size: Tuple[int, int] = (224, 224)) -> np.ndarray:
-    """
-    Preprocess single image.
-    
-    Pipeline: Load → Resize → Normalize → Add batch dimension
-    
-    Args:
-        image_path: Path to image file
-        target_size: Target size, default (224, 224)
-    
-    Returns:
-        Preprocessed image array, shape (1, 224, 224, 3)
-    """
+
+    """Preprocess single image: Load -> Resize -> Normalize."""
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image file not found: {image_path}")
     
@@ -80,22 +62,8 @@ def predict_single_image(
     class_names: List[str],
     top_k: int = 3
 ) -> Dict[str, Any]:
-    """
-    Predict class of single image.
-    
-    Args:
-        model: Keras model
-        image_path: Path to image
-        class_names: List of class names
-        top_k: Return top K predictions
-    
-    Returns:
-        Prediction results dictionary:
-        - image_path: Image path
-        - predicted_class: Predicted class
-        - confidence: Confidence score
-        - top_k_predictions: Top-K prediction list
-    """
+
+    """Predict class of single image."""
     # Preprocess image
     img_array = preprocess_input_image(image_path)
     
@@ -121,17 +89,12 @@ def predict_batch(
     image_paths: List[str],
     class_names: List[str]
 ) -> List[Dict[str, Any]]:
-    """
-    Batch prediction for multiple images.
-    
-    Args:
-        model: Keras model
-        image_paths: List of image paths
-        class_names: List of class names
-    
-    Returns:
-        List of prediction results
-    """
+def predict_batch(
+    model: keras.Model,
+    image_paths: List[str],
+    class_names: List[str]
+) -> List[Dict[str, Any]]:
+    """Batch prediction for multiple images."""
     results = []
     
     # Create progress bar
@@ -145,7 +108,7 @@ def predict_batch(
             result = predict_single_image(model, image_path, class_names, top_k=1)
             results.append(result)
         except Exception as e:
-            print(f"\n⚠️  Failed {image_path}: {e}")
+            print(f"\nFailed {image_path}: {e}")
             results.append({
                 'image_path': image_path,
                 'predicted_class': 'ERROR',
@@ -158,40 +121,21 @@ def predict_batch(
             print(f"  Progress: {i + 1}/{len(image_paths)}")
     
     if not TQDM_AVAILABLE:
-        print(f"✓ Completed: {len(results)} images")
+        print(f"Completed: {len(results)} images")
     
     return results
 
 
 def format_predictions(prediction_dict: Dict[str, Any]) -> str:
-    """
-    Format prediction results as readable string.
-    
-    Args:
-        prediction_dict: Prediction result dictionary
-    
-    Returns:
-        Formatted string
-    """
+
+    """Format prediction results as readable string."""
     # Error case
     if 'error' in prediction_dict:
-        return f"""
-==================
-Prediction Error
-==================
-Image: {prediction_dict['image_path']}
-Error: {prediction_dict['error']}
-"""
+    if 'error' in prediction_dict:
+        return f"\nPrediction Error\nImage: {prediction_dict['image_path']}\nError: {prediction_dict['error']}\n"
     
     # Normal results
-    output = f"""
-==================
-Prediction Result
-==================
-Image: {prediction_dict['image_path']}
-Predicted Class: {prediction_dict['predicted_class']}
-Confidence: {prediction_dict['confidence']:.2%}
-"""
+    output = f"\nPrediction Result\nImage: {prediction_dict['image_path']}\nPredicted Class: {prediction_dict['predicted_class']}\nConfidence: {prediction_dict['confidence']:.2%}\n"
     
     # Add top-K results
     top_k_preds = prediction_dict.get('top_k_predictions', [])
@@ -205,10 +149,8 @@ Confidence: {prediction_dict['confidence']:.2%}
 
 # Module test
 if __name__ == "__main__":
-    print("=" * 50)
     print("Inference Module Test")
-    print("=" * 50)
-    print("\n✓ Module loaded successfully!")
+    print("\nModule loaded successfully!")
     print("\nAvailable functions:")
     print("  - load_model()")
     print("  - preprocess_input_image()")

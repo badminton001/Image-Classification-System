@@ -1,61 +1,73 @@
-# Image-Classification-System
-Multi-model comparison image classification system using TensorFlow
 # Image Classification System
+**Scene Recognition with Deep Learning (Intel Image Classification)**
 
-## 1. Project Overview
-This project is a Python-based application developed for the **AIT102 (Python and TensorFlow Programming)** course.
+This project is a comprehensive Python-based system for classifying images into 6 scene categories: **buildings, forest, glacier, mountain, sea, and street**. It utilizes Transfer Learning with state-of-the-art architectures (VGG16, ResNet50, MobileNetV2) and features a modular design for scalability.
 
-The system uses Deep Learning models (VGG16 and ResNet50) to automatically classify images into specific categories. It aims to demonstrate the practical application of Computer Vision techniques, including data processing, model training, evaluation, and GUI development.
+---
 
-## 2. Dataset Information
-We utilize the **Intel Image Classification Dataset** for Scene Recognition.
+## Key Features
 
-* **Source:** Intel Image Classification (Kaggle)
-* **Total Images:** ~14,000 images
-* **Categories (6 Classes):**
-    * `buildings`
-    * `forest`
-    * `glacier`
-    * `mountain`
-    * `sea`
-    * `street`
-* **Data Processing:**
-    The dataset is automatically processed and split into:
-    * **Training Set (70%)**: For model learning.
-    * **Validation Set (15%)**: For hyperparameter tuning.
-    * **Test Set (15%)**: For final evaluation.
+*   **Advanced Models**: Implements **VGG16**, **ResNet50**, and **MobileNetV2** using Transfer Learning.
+*   **Robust Data Pipeline**:
+    *   Automatic data loading and validation.
+    *   Image processing (Resizing to 224x224, Normalization).
+    *   Real-time Data Augmentation (Rotation, Zoom, Flip, Brightness).
+*   **Training System**:
+    *   Custom training loops with automated callbacks.
+    *   Early Stopping & Learning Rate Decay.
+    *   Model Checkpointing (saves best `.h5` weights).
+*   **Interactive Interface**: A console-based menu system for easy navigation (Training, Evaluation, Prediction, Visualization).
+*   **Modular Architecture**: Clean separation of concerns (Data, Models, UI, Utils, Prediction).
 
-## 3. Project Structure & Features
+## Project Structure
 
-### Data Module (`/data`)
-* **Manual Data Loading:** Implements image loading using `PIL` without relying on high-level Keras APIs.
-* **Preprocessing:** Includes image resizing (224x224) and pixel normalization.
-* **Augmentation:** Applies rotation, zoom, and flips to improve model generalization.
+```
+Image-Classification-System/
+├── data/                 # Data Loading & Preprocessing Module
+├── models/               # Model Architecture & Training definitions
+├── predict/              # Inference Engine
+├── ui/                   # User Interface (Console Menu)
+├── utils/                # Helper utilities (Logger, Visualization)
+├── weights/              # Trained model artifacts (.h5 files)
+├── results/              # Training history and logs
+├── main.py               # Main Application Entry Point
+├── run_training.py       # Standalone Training Script
+└── config.py             # Global Configuration
+```
 
-### Model Module (`/models`)
-* **Transfer Learning:** Utilizes pre-trained models (VGG16, ResNet50) with custom classification layers.
-* **Training:** Implements the training loop with `Adam` optimizer and `Sparse Categorical Crossentropy` loss.
+## Setup & Installation
 
-### Evaluation Module
-* Comparisons of model performance (Accuracy/Loss curves).
-* Confusion Matrix analysis.
+1.  **Prerequisites**:
+    *   Python 3.8+
+    *   TensorFlow
+    *   NumPy, Pandas, Matplotlib, Scikit-learn, Pillow
 
-### Application (GUI)
-* A user-friendly interface to upload images and view classification results in real-time.
+2.  **Dataset**:
+    *   Download the **Intel Image Classification** dataset.
+    *   Ensure the dataset path is configured in `config.py` (or `main.py` entry settings).
 
-## 4. Requirements
-* Python 3.x
-* TensorFlow
-* NumPy
-* Pandas
-* Matplotlib
-* Pillow (PIL)
-* Scikit-learn
+## Usage
 
-## 5. Team Members
-* **Member 1:** Data Loading, Preprocessing & Augmentation
-* **Member 2:** Model Architecture & Training
-* **Member 3:** Model Evaluation & Comparison
-* **Member 4:** Visualization & PPT
-* **Member 5:** GUI Application Development
-* **Group Leader:** Project Management & Coordination
+### 1. Main Application (Recommended)
+Launch the interactive menu system to access all features:
+```bash
+python main.py
+```
+*   **Functions**: Load Data, Train Models, Evaluate, Predict (Single/Batch), Visualize Results.
+
+### 2. Standalone Training
+To run the training pipeline directly without the UI:
+```bash
+python run_training.py
+```
+*   This will train all defined models and save weights to `weights/`.
+
+## Model Performance
+The system supports training and evaluating the following architectures:
+*   **MobileNetV2**: Lightweight, fast training (Recommended for CPU/Entry GPU).
+*   **VGG16**: Classic deep CNN architecture.
+*   **ResNet50**: Deep residual network for high accuracy.
+
+## Configuration
+*   **Global Settings**: `config.py`
+*   **Model Parameters**: `models/config_models.py` (Adjust Batch Size, Epochs, Learning Rate).

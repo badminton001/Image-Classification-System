@@ -17,35 +17,27 @@ from config import RESULTS_DIR, WEIGHTS_DIR
 
 
 def create_directories() -> None:
-    """
-    Create required directories for weights and results if they do not exist.
-    """
+    """Create required directories for weights and results."""
     for folder in (WEIGHTS_DIR, RESULTS_DIR):
         folder.mkdir(parents=True, exist_ok=True)
 
 
 def print_separator(title: str = "") -> None:
-    """
-    Print a simple separator line with an optional title.
-    """
+    """Print a simple separator line with optional title."""
     if title:
-        print(f"\n===== {title} =====")
+        print(f"\n{title}")
     else:
-        print("\n====================")
+        print()
 
 
 def print_section(title: str) -> None:
-    """
-    Print a highlighted section header.
-    """
-    print_separator(title)
-    print_separator()
+    """Print a highlighted section header."""
+    print(f"\n{title}")
+    print()
 
 
 def _json_serializer(obj: Any) -> Any:
-    """
-    Convert non-serializable objects (e.g., numpy types) into JSON-friendly formats.
-    """
+    """JSON serializer for objects not serializable by default."""
     if np is not None:
         if isinstance(obj, (np.integer, np.floating)):
             return obj.item()
@@ -57,10 +49,7 @@ def _json_serializer(obj: Any) -> Any:
 
 
 def save_results_to_json(results_dict: Dict[str, Any], filename: Path | str) -> Path:
-    """
-    Save results to a JSON file, ensuring parent directories exist.
-    Unserializable objects are converted where possible.
-    """
+    """Save results to a JSON file."""
     path = Path(filename)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
@@ -69,9 +58,7 @@ def save_results_to_json(results_dict: Dict[str, Any], filename: Path | str) -> 
 
 
 def load_results_from_json(filename: Path | str) -> Optional[Dict[str, Any]]:
-    """
-    Load JSON results from file. Returns None if the file does not exist or cannot be read.
-    """
+    """Load JSON results from file."""
     path = Path(filename)
     if not path.exists():
         print(f"[Info] File not found: {path}")
@@ -85,9 +72,7 @@ def load_results_from_json(filename: Path | str) -> Optional[Dict[str, Any]]:
 
 
 def validate_path(path: Path | str) -> bool:
-    """
-    Validate whether a given path exists (file or directory).
-    """
+    """Check if path exists."""
     target = Path(path)
     if not target.exists():
         print(f"[Warning] Path does not exist: {target}")
@@ -96,9 +81,7 @@ def validate_path(path: Path | str) -> bool:
 
 
 def format_time(seconds: float) -> str:
-    """
-    Convert seconds to a human-readable string (e.g., '2h 30m 45s').
-    """
+    """Convert seconds to human-readable string."""
     seconds = int(seconds)
     hours, remainder = divmod(seconds, 3600)
     minutes, secs = divmod(remainder, 60)
@@ -112,16 +95,7 @@ def format_time(seconds: float) -> str:
 
 
 def collect_image_files(directory: Path | str, extensions: Sequence[str] | None = None) -> List[Path]:
-    """
-    Collect image files recursively from a directory.
-
-    Args:
-        directory: Directory path to scan.
-        extensions: Optional sequence of allowed extensions (case-insensitive).
-
-    Returns:
-        List of Path objects pointing to image files.
-    """
+    """Recursively collect image files from directory."""
     exts = extensions or [".jpg", ".jpeg", ".png", ".bmp"]
     root = Path(directory)
     if not root.exists():

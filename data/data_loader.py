@@ -5,7 +5,7 @@ from PIL import Image
 
 def load_dataset_from_directory(dataset_path):
     """
-    [功能]: 从文件夹里读取所有图片。
+    Load all images from the dataset directory.
     """
     if not os.path.exists(dataset_path):
         raise FileNotFoundError(f"Dataset path not found: {dataset_path}")
@@ -14,7 +14,7 @@ def load_dataset_from_directory(dataset_path):
     labels = []
     class_names = []
     
-    # 用集合(Set)来记录已经加载过的文件，防止Windows下大小写重复加载
+    # Use set to track loaded files to avoid deduplication issues
     seen_files = set()
     
     entries = os.listdir(dataset_path)
@@ -35,13 +35,13 @@ def load_dataset_from_directory(dataset_path):
             found_files = glob.glob(search_path)
             
             for file_path in found_files:
-                # 统一路径格式，并检查是否已经加载过
+                # Normalize path and check for duplicates
                 norm_path = os.path.normpath(file_path)
                 
                 if norm_path not in seen_files:
                     image_paths.append(norm_path)
                     labels.append(class_idx)
-                    seen_files.add(norm_path) # 标记为已加载
+                    seen_files.add(norm_path)
                 
     image_paths = np.array(image_paths)
     labels = np.array(labels)

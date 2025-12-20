@@ -60,7 +60,7 @@ app_state = AppState()
 
 
 def print_main_menu() -> None:
-    print("\n===== Image Classification Enhancement System =====")
+    print("\nImage Classification Enhancement System")
     print("1. Load and preprocess dataset")
     print("2. Train a single model")
     print("3. Train all models")
@@ -462,7 +462,7 @@ def handle_batch_prediction() -> None:
 
 
 def _visualization_menu() -> int:
-    print("\n===== Visualization Menu =====")
+    print("\nVisualization Menu")
     print("1. Training curves")
     print("2. Confusion matrix")
     print("3. Model comparison")

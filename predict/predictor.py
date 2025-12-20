@@ -13,28 +13,11 @@ class Predictor:
     Image classification predictor.
     
     Encapsulates model loading and prediction, provides simple interface.
-    
-    Attributes:
-        model_name: Model name
-        weights_path: Path to weights file
-        class_names: List of class names
-        model: Keras model object
-    
-    Example:
-        >>> predictor = Predictor("VGG16", "weights/vgg16.h5", class_names)
-        >>> result = predictor.predict("test.jpg")
-        >>> print(result['predicted_class'])
     """
     
     def __init__(self, model_name: str, weights_path: str, class_names: List[str]):
-        """
-        Initialize predictor.
-        
-        Args:
-            model_name: Model name (VGG16/ResNet50/MobileNetV2)
-            weights_path: Path to model weights file
-            class_names: List of class names
-        """
+
+        """Initialize predictor."""
         self.model_name = model_name
         self.weights_path = weights_path
         self.class_names = class_names
@@ -49,16 +32,8 @@ class Predictor:
             raise
     
     def predict(self, image_path: str, top_k: int = 3) -> Dict[str, Any]:
-        """
-        Predict single image.
-        
-        Args:
-            image_path: Path to image file
-            top_k: Return top K predictions, default 3
-        
-        Returns:
-            Prediction result dictionary
-        """
+
+        """Predict single image."""
         return predict_single_image(
             model=self.model,
             image_path=image_path,
@@ -67,15 +42,7 @@ class Predictor:
         )
     
     def batch_predict(self, image_paths: List[str]) -> List[Dict[str, Any]]:
-        """
-        Batch predict multiple images.
-        
-        Args:
-            image_paths: List of image paths
-        
-        Returns:
-            List of prediction results
-        """
+        """Batch predict multiple images."""
         return predict_batch(
             model=self.model,
             image_paths=image_paths,
@@ -83,12 +50,8 @@ class Predictor:
         )
     
     def get_model_info(self) -> Dict[str, Any]:
-        """
-        Get model information.
-        
-        Returns:
-            Model information dictionary
-        """
+
+        """Get model information."""
         total_params = self.model.count_params()
         trainable_params = sum([
             param.numpy().size
@@ -124,10 +87,8 @@ class Predictor:
 
 # Module test
 if __name__ == "__main__":
-    print("=" * 50)
     print("Predictor Module Test")
-    print("=" * 50)
-    print("\n✓ Predictor class loaded successfully!")
+    print("\nPredictor class loaded successfully!")
     print("\nAvailable methods:")
     print("  - __init__(model_name, weights_path, class_names)")
     print("  - predict(image_path, top_k=3)")

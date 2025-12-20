@@ -4,15 +4,23 @@ from sklearn.model_selection import train_test_split
 from .data_loader import load_dataset_from_directory, load_image
 
 def resize_image(image, target_size=(224, 224)):
+    """Resize image to target dimensions using LANCZOS resampling."""
     return image.resize(target_size, Image.LANCZOS)
 
 def img_to_array(image):
+    """Convert PIL image to numpy array."""
     return np.array(image)
 
 def normalize_image(image_array):
+    """Normalize pixel values to [0, 1] range."""
     return image_array.astype('float32') / 255.0
 
 def split_dataset(image_paths, labels, test_size=0.15, val_size=0.15):
+
+    """
+    Split dataset into training, validation, and test sets.
+    Ensures stratified sampling to maintain class distribution.
+    """
     X_train_val, X_test, y_train_val, y_test = train_test_split(
         image_paths, labels, test_size=test_size, stratify=labels, random_state=42
     )
@@ -26,6 +34,7 @@ def split_dataset(image_paths, labels, test_size=0.15, val_size=0.15):
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 def _load_and_process_batch(image_paths, target_size):
+    """Internal helper to load, resize, and normalize a batch of images."""
     data_list = []
     for path in image_paths:
         img = load_image(path)
@@ -38,6 +47,8 @@ def _load_and_process_batch(image_paths, target_size):
     return np.array(data_list)
 
 def prepare_dataset(dataset_path, target_size=(224, 224), test_size=0.15, val_size=0.15):
+
+    """Load, split, and preprocess the entire dataset."""
     print(f"[Info] Scanning dataset from: {dataset_path}")
     image_paths, labels, class_names = load_dataset_from_directory(dataset_path)
     
