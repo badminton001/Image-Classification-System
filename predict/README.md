@@ -1,23 +1,39 @@
 # Prediction Module
 
-This module manages model inference, from loading weights to generating predictions.
+This module handles the inference logic, facilitating both single-image prediction and batch processing.
 
 ## Components
 
-- **inference.py**: Low-level functions for image loading, preprocessing, and model prediction.
-- **predictor.py**: High-level `Predictor` class wrapper for easy integration.
-- **config.py**: Configuration constants for inference (e.g., supported formats).
-- **utils.py**: Helpers for file validation and result formatting.
+- **`inference.py`**:
+  - Core functions for loading models and preprocessing input images.
+  - Handles prediction logic and result formatting.
+
+- **`predictor.py`**:
+  - A high-level `Predictor` class that wraps the inference logic.
+  - Provides a simplified API for the UI and external scripts.
+
+- **`config.py`**:
+  - Configuration constants specific to inference (e.g., supported image formats, default Top-K).
+
+- **`utils.py`**:
+  - Helper functions for results formatting and file system operations related to prediction.
 
 ## Usage
 
 ```python
 from predict.predictor import Predictor
 
-# Initialize
-predictor = Predictor("vgg16", "weights/vgg16_best_model.h5", class_names=["cat", "dog"])
+# 1. Initialize
+predictor = Predictor(
+    model_name="vgg16",
+    model_path="weights/vgg16_best_model.h5",
+    class_names=["buildings", "forest", "glacier", "mountain", "sea", "street"]
+)
 
-# Predict
+# 2. Predict Single Image
 result = predictor.predict("test_image.jpg")
-print(result)
+print(f"Predicted Class: {result['predicted_class']}")
+
+# 3. Batch Predict
+batch_results = predictor.predict_batch(["img1.jpg", "img2.jpg"])
 ```

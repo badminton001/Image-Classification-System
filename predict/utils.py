@@ -1,14 +1,4 @@
-"""
-Utility functions for the prediction module.
-
-This module provides helper functions for common tasks such as:
-- Image information retrieval
-- Result saving (JSON, CSV)
-- Input validation
-- File operations
-
-Author: Member 4 - Prediction & Inference Team
-"""
+"""Utility functions for the prediction module."""
 
 import os
 import json
@@ -22,23 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def validate_image_path(image_path: str) -> bool:
-    """
-    Validate image file path and format.
-    
-    Args:
-        image_path (str): Path to image file
-        
-    Returns:
-        bool: True if valid
-        
-    Raises:
-        FileNotFoundError: If image doesn't exist
-        ValueError: If format not supported
-        
-    Example:
-        >>> validate_image_path("test.jpg")
-        True
-    """
+    """Validate image file path and format."""
     # Check if file exists
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image file not found: {image_path}")
@@ -60,18 +34,7 @@ def validate_image_path(image_path: str) -> bool:
 
 
 def validate_image_size(image_path: str) -> Tuple[int, int]:
-    """
-    Validate image size is within acceptable range.
-    
-    Args:
-        image_path (str): Path to image file
-        
-    Returns:
-        Tuple[int, int]: Image size (width, height)
-        
-    Raises:
-        ValueError: If image size is too small or too large
-    """
+    """Validate image size is within acceptable range."""
     img = Image.open(image_path)
     width, height = img.size
     
@@ -93,20 +56,7 @@ def validate_image_size(image_path: str) -> Tuple[int, int]:
 
 
 def get_image_info(image_path: str) -> Dict[str, Any]:
-    """
-    Get detailed information about an image.
-    
-    Args:
-        image_path (str): Path to image file
-        
-    Returns:
-        Dict[str, Any]: Image information including size, mode, format, etc.
-        
-    Example:
-        >>> info = get_image_info("test.jpg")
-        >>> print(info['size'])
-        (1024, 768)
-    """
+    """Get detailed information about an image."""
     img = Image.open(image_path)
     
     return {
@@ -126,21 +76,7 @@ def save_predictions_to_json(
     output_path: str,
     indent: int = 2
 ) -> str:
-    """
-    Save prediction results to JSON file.
-    
-    Args:
-        predictions (List[Dict]): List of prediction dictionaries
-        output_path (str): Output file path
-        indent (int): JSON indentation level
-        
-    Returns:
-        str: Path to saved file
-        
-    Example:
-        >>> save_predictions_to_json(results, "predictions.json")
-        'predictions.json'
-    """
+    """Save prediction results to JSON file."""
     try:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(predictions, f, indent=indent, ensure_ascii=False)
@@ -157,23 +93,7 @@ def save_predictions_to_csv(
     predictions: List[Dict[str, Any]],
     output_path: str
 ) -> str:
-    """
-    Save prediction results to CSV file.
-    
-    Args:
-        predictions (List[Dict]): List of prediction dictionaries
-        output_path (str): Output file path
-        
-    Returns:
-        str: Path to saved file
-        
-    Example:
-        >>> save_predictions_to_csv(results, "predictions.csv")
-        'predictions.csv'
-        
-    Reference:
-        Pandas to_csv: https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_csv.html
-    """
+    """Save prediction results to CSV file."""
     try:
         import pandas as pd
         
@@ -202,19 +122,7 @@ def save_predictions_to_csv(
 
 
 def format_file_size(size_bytes: int) -> str:
-    """
-    Format file size in human-readable format.
-    
-    Args:
-        size_bytes (int): File size in bytes
-        
-    Returns:
-        str: Formatted size (e.g., "1.5 MB")
-        
-    Example:
-        >>> format_file_size(1536000)
-        '1.46 MB'
-    """
+    """Format file size in human-readable format."""
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size_bytes < 1024.0:
             return f"{size_bytes:.2f} {unit}"
@@ -223,19 +131,7 @@ def format_file_size(size_bytes: int) -> str:
 
 
 def ensure_dir_exists(directory: str) -> str:
-    """
-    Ensure directory exists, create if it doesn't.
-    
-    Args:
-        directory (str): Directory path
-        
-    Returns:
-        str: Directory path
-        
-    Example:
-        >>> ensure_dir_exists("results/predictions")
-        'results/predictions'
-    """
+    """Ensure directory exists, create if it doesn't."""
     if not os.path.exists(directory):
         os.makedirs(directory, exist_ok=True)
         logger.info(f"Created directory: {directory}")

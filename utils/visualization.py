@@ -1,6 +1,4 @@
-"""
-Visualization utilities for training history, evaluation metrics, and predictions.
-"""
+"""Visualization utilities."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -72,9 +70,7 @@ def _normalize_history(history: Any) -> Dict[str, List[float]]:
 
 
 def plot_training_history(history_dict: Dict[str, Any], save_path: Path | str = RESULTS_DIR / "training_history.png") -> Path:
-    """
-    Plot training/validation loss and accuracy for multiple models.
-    """
+    """Plot training history."""
     _require_matplotlib()
     create_directories()
     if not history_dict:
@@ -122,9 +118,7 @@ def plot_training_history(history_dict: Dict[str, Any], save_path: Path | str = 
 
 
 def plot_confusion_matrix(cm: Any, class_names: Sequence[str], model_name: str, save_path: Path | str) -> Path:
-    """
-    Plot a confusion matrix heatmap.
-    """
+    """Plot confusion matrix."""
     _require_matplotlib()
     create_directories()
     if np is None:
@@ -166,9 +160,7 @@ def plot_confusion_matrix(cm: Any, class_names: Sequence[str], model_name: str, 
 
 
 def plot_model_comparison(metrics_dict: Dict[str, Dict[str, float]], save_path: Path | str = RESULTS_DIR / "model_comparison.png") -> Path:
-    """
-    Plot bar charts comparing model metrics (accuracy and F1-score).
-    """
+    """Plot model comparison charts."""
     _require_matplotlib()
     create_directories()
     if np is None:
@@ -214,9 +206,7 @@ def plot_model_comparison(metrics_dict: Dict[str, Dict[str, float]], save_path: 
 
 
 def plot_prediction_distribution(predictions: Any, class_names: Sequence[str], save_path: Path | str) -> Path:
-    """
-    Plot prediction distribution for a single sample or averaged over batch predictions.
-    """
+    """Plot prediction distribution."""
     logger.info("Starting plot_prediction_distribution...")
     _require_matplotlib()
     create_directories()
@@ -265,9 +255,7 @@ def plot_prediction_distribution(predictions: Any, class_names: Sequence[str], s
 
 
 def display_image_with_prediction(image_path: Path | str, prediction: Dict[str, Any], save_path: Path | str) -> Path:
-    """
-    Display an image with prediction information overlaid.
-    """
+    """Display image with prediction overlay."""
     _require_matplotlib()
     create_directories()
     if Image is None:
@@ -317,9 +305,7 @@ def display_image_with_prediction(image_path: Path | str, prediction: Dict[str, 
 
 
 def plot_class_counts(counts: Sequence[int], class_names: Sequence[str], save_path: Path | str) -> Path:
-    """
-    Plot bar chart of class counts (e.g. prediction frequency).
-    """
+    """Plot class count bar chart."""
     _require_matplotlib()
     create_directories()
     
@@ -362,10 +348,7 @@ __all__ = [
 
 
 if __name__ == "__main__":
-    """
-    Command-line execution for batch prediction analysis.
-    Reads results/batch_predictions.json and generates visualization plots.
-    """
+    """Command-line visualization execution."""
     print("Running Visualization Analysis...")
     
     json_path = RESULTS_DIR / "batch_predictions.json"

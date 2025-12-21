@@ -14,8 +14,6 @@ from models import (
 )
 
 # Configuration
-# Please modify this path to your actual dataset path
-# If no real data, you can use data_samples (might fail due to insufficient data)
 DATASET_PATH = './data_samples' 
 BATCH_SIZE = 32
 TARGET_SIZE = (224, 224)
@@ -23,7 +21,6 @@ TARGET_SIZE = (224, 224)
 def main():
     if not os.path.exists(DATASET_PATH) or not os.listdir(DATASET_PATH):
         print(f"Error: Dataset path '{DATASET_PATH}' is invalid.")
-        print("Please update 'DATASET_PATH' in run_training.py to your Intel Image Classification dataset directory.")
         return
 
     # 1. Data Processing
@@ -72,7 +69,7 @@ def main():
     
     # 5. Save Results
     save_training_history(history_dict)
-    print("Training finished. Artifacts saved in 'weights/' and 'results/'.")
+    print("Training finished.")
 
 if __name__ == "__main__":
     main()

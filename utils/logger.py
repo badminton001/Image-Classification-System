@@ -1,6 +1,4 @@
-"""
-Logging utilities for the Image Classification Enhancement System.
-"""
+"""Logging utilities."""
 from __future__ import annotations
 
 import logging
@@ -12,13 +10,7 @@ from utils.helpers import create_directories
 
 
 def setup_logger(name: str, log_file: str | Path = LOG_FILE) -> Logger:
-    """
-    Configure and return a logger that outputs to both console and file.
-
-    - Log level: INFO
-    - Avoids duplicate handlers on repeated calls.
-    - Ensures the results directory exists.
-    """
+    """Configure and return a logger."""
     create_directories()
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)

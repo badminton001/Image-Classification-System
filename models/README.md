@@ -1,49 +1,38 @@
-# Model Engineering Module Documentation
+# Model Engineering Module
 
 ## Overview
-This module (`models/`) is responsible for defining, compiling, and training the deep learning models for the Image Classification System. It implements transfer learning using three state-of-the-art architectures: VGG16, ResNet50, and MobileNetV2.
+This module defines, compiles, and trains the Deep Learning models. It leverages Transfer Learning with three pre-trained architectures: **VGG16**, **ResNet50**, and **MobileNetV2**.
 
 ## File Structure
 
-### `models/config_models.py`
-Contains global configuration constants for the model training process.
-- **Input Shape**: (224, 224, 3)
-- **Hyperparameters**: Learning rate (0.001), Batch size (32), Epochs (50).
-- **Classes**: 6 categories (buildings, forest, glacier, mountain, sea, street).
+### `config_models.py`
+- Centralized configuration for model hyperparameters.
+- **Settings**: Input Shape (224x224x3), Batch Size (32), Epochs (50), Learning Rate (0.001).
+- **Classes**: 6 scene categories.
 
-### `models/model_architecture.py`
-Defines the factory functions for building models.
-- **Method**: Transfer Learning (ImageNet weights).
-- **Base Models**: VGG16, ResNet50, MobileNetV2 (Frozen).
-- **HEAD (Custom Top Layers)**:
-    - GlobalAveragePooling2D
-    - Dense (256 units, ReLU)
-    - Dropout (0.5)
-    - Dense (Output, Softmax)
+### `model_architecture.py`
+- **Factory Functions**: `build_vgg16_model`, `build_resnet50_model`, `build_mobilenetv2_model`.
+- **Architecture**:
+  - **Base**: Pre-trained on ImageNet (weights frozen).
+  - **Head**: Custom GlobalAveragePooling > Dense(256) > Dropout(0.5) > Output(Softmax).
 
-### `models/train.py`
-Manages the training workflow.
+### `train.py`
+- Manages the training loop and callback configuration.
 - **Callbacks**:
-    - `EarlyStopping`: Monitors validation loss (patience=5).
-    - `ReduceLROnPlateau`: Decays learning rate on stagnation.
-    - `ModelCheckpoint`: Saves best weights (`.h5`).
-- **Persistence**: Saves training history to `results/training_history.json`.
+  - `EarlyStopping`: Prevents overfitting.
+  - `ReduceLROnPlateau`: Optimizes learning rate dynamically.
+  - `ModelCheckpoint`: Auto-saves the best model weights.
+- **Output**: Saves training history to JSON for visualization.
 
 ## Usage
-
-### Training Interface
-The training process is exposed via `run_training.py` or the `train_all_models` function in `models/train.py`.
 
 ```python
 from models import build_mobilenetv2_model, compile_model, train_single_model
 
-# Example Usage
+# Build and Compile
 model = build_mobilenetv2_model(num_classes=6)
 model = compile_model(model)
-history = train_single_model(model, 'mobilenetv2', train_dataset, val_dataset)
-```
 
-## Algorithms
-- **Optimizer**: Adam
-- **Loss Function**: Categorical Crossentropy
-- **Metrics**: Accuracy
+# Train
+history = train_single_model(model, 'mobilenetv2', train_gen, val_gen)
+```

@@ -1,0 +1,23 @@
+2025-12-21 13:47:59,243 - INFO - ImageClassifier - Program started.
+2025-12-21 13:47:59,248 - INFO - ImageClassifier - Dataset path available: C:\Users\Y\Desktop\Image-Classification-System\data_samples
+2025-12-21 13:48:08,857 - ERROR - ImageClassifierUI - Failed to load model: Failed to load model (all strategies failed): 'str' object has no attribute 'as_list'
+2025-12-21 13:48:16,921 - INFO - ImageClassifier - Program exited.
+2025-12-21 13:49:25,176 - INFO - ImageClassifier - Program started.
+2025-12-21 13:49:25,177 - INFO - ImageClassifier - Dataset path available: C:\Users\Y\Desktop\Image-Classification-System\data_samples
+2025-12-21 13:50:44,801 - WARNING - ImageClassifier - Program interrupted by user (KeyboardInterrupt).
+2025-12-21 13:50:44,801 - INFO - ImageClassifier - Program exited.
+2025-12-21 13:54:37,378 - INFO - ImageClassifier - Program started.
+2025-12-21 13:54:37,382 - INFO - ImageClassifier - Dataset path available: C:\Users\Y\Desktop\Image-Classification-System\data_samples
+2025-12-21 13:55:03,521 - INFO - utils.visualization - Starting plot_prediction_distribution...
+2025-12-21 13:55:03,522 - INFO - utils.visualization - Converting predictions to numpy array...
+2025-12-21 13:55:03,522 - INFO - utils.visualization - Predictions shape: (6,), dtype: float32
+2025-12-21 13:55:03,522 - INFO - utils.visualization - Creating matplotlib figure...
+2025-12-21 13:55:03,605 - INFO - utils.visualization - Saving figure to results\prediction_distribution.png...
+2025-12-21 13:55:03,728 - INFO - utils.visualization - Figure saved successfully
+2025-12-21 13:55:03,728 - INFO - utils.visualization - Saved prediction distribution plot to results\prediction_distribution.png
+2025-12-21 13:55:04,547 - INFO - utils.visualization - Saved image with prediction overlay to results\prediction_overlay.png
+2025-12-21 14:02:54,411 - INFO - utils.visualization - Saved confusion matrix plot to results\batch_confusion_matrix.png
+2025-12-21 14:02:54,474 - INFO - utils.visualization - Saved class counts plot to results\batch_class_distribution.png
+2025-12-21 14:16:00,737 - INFO - utils.visualization - Saved confusion matrix plot to results\batch_confusion_matrix.png
+2025-12-21 14:16:00,801 - INFO - utils.visualization - Saved class counts plot to results\batch_class_distribution.png
+2025-12-21 14:16:27,581 - INFO - ImageClassifier - Program exited.

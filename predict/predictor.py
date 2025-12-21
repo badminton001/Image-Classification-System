@@ -1,19 +1,11 @@
-"""
-Image classification predictor class module.
-
-Encapsulates prediction logic and manages model lifecycle.
-"""
+"""Image classification predictor class module."""
 
 from typing import List, Dict, Any
 from .inference import load_model, predict_single_image, predict_batch
 
 
 class Predictor:
-    """
-    Image classification predictor.
-    
-    Encapsulates model loading and prediction, provides simple interface.
-    """
+    """Image classification predictor."""
     
     def __init__(self, model_name: str, weights_path: str, class_names: List[str]):
 

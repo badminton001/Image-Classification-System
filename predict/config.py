@@ -1,28 +1,21 @@
-"""
-Configuration file for the prediction module.
+"""Configuration constants for prediction module."""
 
-This module contains configuration constants and default values used
-throughout the prediction pipeline.
+# Preprocessing
+DEFAULT_IMAGE_SIZE = (224, 224)
+DEFAULT_IMAGE_MODE = 'RGB'
 
-Author: Member 4 - Prediction & Inference Team
-"""
+# Prediction
+DEFAULT_TOP_K = 3
+MAX_BATCH_SIZE = 32
 
-# Default image preprocessing settings
-DEFAULT_IMAGE_SIZE = (224, 224)  # Standard size for VGG16, ResNet50, MobileNetV2
-DEFAULT_IMAGE_MODE = 'RGB'       # Color mode
-
-# Prediction settings
-DEFAULT_TOP_K = 3                # Default number of top predictions to return
-MAX_BATCH_SIZE = 32             # Maximum batch size for processing
-
-# Supported models
+# Supported architectures
 SUPPORTED_MODELS = [
     'VGG16',
     'ResNet50',
     'MobileNetV2'
 ]
 
-# Supported image formats
+# Image formats
 SUPPORTED_IMAGE_FORMATS = [
     '.jpg',
     '.jpeg',
@@ -32,23 +25,23 @@ SUPPORTED_IMAGE_FORMATS = [
     '.webp'
 ]
 
-# File paths (relative to project root)
+# Paths
 DEFAULT_WEIGHTS_DIR = 'weights'
 DEFAULT_RESULTS_DIR = 'results'
 
-# Logging settings
-LOG_LEVEL = 'INFO'              # DEBUG, INFO, WARNING, ERROR, CRITICAL
+# Logging
+LOG_LEVEL = 'INFO'
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
-# Validation settings
-VALIDATE_INPUT = True           # Whether to validate inputs
-MIN_IMAGE_SIZE = (32, 32)      # Minimum allowed image size
-MAX_IMAGE_SIZE = (4096, 4096)   # Maximum allowed image size
+# Validation
+VALIDATE_INPUT = True
+MIN_IMAGE_SIZE = (32, 32)
+MAX_IMAGE_SIZE = (4096, 4096)
 
-# Performance settings
-USE_GPU = True                  # Whether to use GPU if available
-PREFETCH_ENABLED = True         # Enable image prefetching for batches
+# Performance
+USE_GPU = True
+PREFETCH_ENABLED = True
 
-# Output formatting
-PREDICTION_DECIMAL_PLACES = 4  # Decimal places for probabilities
+# Formatting
+PREDICTION_DECIMAL_PLACES = 4
 DISPLAY_CONFIDENCE_AS_PERCENTAGE = True

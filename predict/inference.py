@@ -129,10 +129,40 @@ def load_model(model_name: str, weights_path: str) -> keras.Model:
             raise Exception(f"Failed to load model: {error_str}")
 
 
-def preprocess_input_image(image_path: str, target_size: Tuple[int, int] = (224, 224)) -> np.ndarray:
-    """Preprocess single image: Load -> Resize -> Normalize."""
+def preprocess_input_image(
+    image_path: str, 
+    target_size: Optional[Tuple[int, int]] = None,
+    model: Optional[keras.Model] = None
+) -> np.ndarray:
+    """
+    Preprocess single image: Load -> Resize -> Normalize.
+    
+    Args:
+        image_path: Path to the image file
+        target_size: Tuple of (height, width). If None, will try to get from model or use default (224, 224)
+        model: Keras model to extract input shape from (optional)
+    
+    Returns:
+        Preprocessed image array with batch dimension
+    """
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image file not found: {image_path}")
+    
+    # Auto-detect target size from model if not provided
+    if target_size is None:
+        if model is not None:
+            try:
+                # Get input shape from model
+                input_shape = model.input_shape
+                if isinstance(input_shape, list):
+                    input_shape = input_shape[0]
+                # Extract height and width (shape is: (batch, height, width, channels))
+                target_size = (input_shape[1], input_shape[2])
+                print(f"[Info] Auto-detected input size from model: {target_size}")
+            except Exception:
+                target_size = TARGET_IMAGE_SIZE
+        else:
+            target_size = TARGET_IMAGE_SIZE
     
     try:
         # Load and convert to RGB
@@ -159,8 +189,8 @@ def predict_single_image(
     top_k: int = 3
 ) -> Dict[str, Any]:
     """Predict class of single image."""
-    # Preprocess image
-    img_array = preprocess_input_image(image_path)
+    # Preprocess image with auto-detected input size from model
+    img_array = preprocess_input_image(image_path, model=model)
     
     # Model prediction
     predictions = model.predict(img_array, verbose=0)[0]

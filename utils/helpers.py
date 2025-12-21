@@ -1,6 +1,4 @@
-"""
-Utility helper functions used across the Image Classification Enhancement System.
-"""
+"""Utility helper functions."""
 from __future__ import annotations
 
 import json
