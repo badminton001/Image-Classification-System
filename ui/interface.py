@@ -110,8 +110,7 @@ class ImageClassifierApp:
 
         ttk.Label(prediction_frame, text="Top-K:").grid(row=3, column=0, sticky="w", padx=6, pady=4)
         ttk.Entry(prediction_frame, textvariable=self.top_k_var, width=6).grid(row=3, column=1, sticky="w", padx=6, pady=4)
-        ttk.Checkbutton(prediction_frame, text="Save overlay image", variable=self.save_overlay_var).grid(row=3, column=2, sticky="w", padx=6, pady=4)
-        ttk.Checkbutton(prediction_frame, text="Save prediction distribution", variable=self.save_distribution_var).grid(row=3, column=3, sticky="w", padx=6, pady=4)
+
 
         ttk.Label(prediction_frame, text="Image path:").grid(row=4, column=0, sticky="w", padx=6, pady=4)
         ttk.Entry(prediction_frame, textvariable=self.image_path_var).grid(row=4, column=1, columnspan=2, sticky="ew", padx=6, pady=4)
@@ -140,8 +139,8 @@ class ImageClassifierApp:
         viz_frame.grid(row=3, column=0, sticky="ew", pady=6)
         viz_frame.columnconfigure(0, weight=1)
         viz_buttons = [
-            ("Prediction Distribution", self._on_plot_prediction_distribution),
-            ("Prediction Overlay", self._on_plot_prediction_overlay),
+            ("Visualization (Single Image)", self._on_single_image_visualization),
+            ("Batch Visualization (Batch Results)", self._on_batch_visualization),
         ]
         for idx, (label, handler) in enumerate(viz_buttons):
             btn = ttk.Button(viz_frame, text=label, command=handler)
@@ -247,9 +246,9 @@ class ImageClassifierApp:
     def _import_optional(self, module_name: str, friendly_name: str) -> Optional[Any]:
         try:
             return importlib.import_module(module_name)
-        except ModuleNotFoundError:
-            self._post(self._log, f"[Error] Missing {friendly_name} module: {module_name}")
-            logger.error("%s module not found: %s", friendly_name, module_name)
+        except ModuleNotFoundError as e:
+            self._post(self._log, f"[Error] Missing {friendly_name} module: {module_name}. Details: {e}")
+            logger.error("%s module not found: %s. Cause: %s", friendly_name, module_name, e)
         except Exception as exc:
             self._post(self._log, f"[Error] Failed to import {friendly_name}: {exc}")
             logger.error("Failed to import %s (%s): %s", friendly_name, module_name, exc)
@@ -406,26 +405,6 @@ class ImageClassifierApp:
             self.state.last_prediction = prediction
             self.state.last_prediction_image = image_path
             self._post(self._log, f"Prediction result: {prediction}")
-
-            if self.save_distribution_var.get() and isinstance(prediction, dict):
-                probs = prediction.get("probabilities")
-                class_names = prediction.get("class_names") or self._resolve_class_names()
-                if probs is not None:
-                    visualization.plot_prediction_distribution(probs, class_names, RESULTS_DIR / "last_prediction.png")
-                    self._post(self._log, "Prediction distribution saved.")
-
-            if self.save_overlay_var.get():
-                try:
-                    visualization.display_image_with_prediction(
-                        image_path,
-                        prediction if isinstance(prediction, dict) else {"predicted_class": prediction},
-                        RESULTS_DIR / "prediction_overlay.png",
-                    )
-                    self._post(self._log, "Prediction overlay saved.")
-                except Exception as exc:
-                    logger.error("Failed to render prediction overlay: %s", exc)
-                    self._post(self._log, f"[Error] Prediction overlay failed: {exc}")
-
             self._post(messagebox.showinfo, "Prediction Complete", "Prediction finished.")
 
         self._run_task("Predicting image...", task)
@@ -456,37 +435,105 @@ class ImageClassifierApp:
 
         self._run_task("Batch prediction...", task)
 
-    def _on_plot_prediction_distribution(self) -> None:
+    def _on_single_image_visualization(self) -> None:
         prediction = self.state.last_prediction
         if not prediction:
-            messagebox.showwarning("Missing Data", "No prediction results available.")
+            self._post(messagebox.showwarning, "Missing Data", "No prediction results available.")
             return
-        if isinstance(prediction, dict):
-            probs = prediction.get("probabilities")
-            class_names = prediction.get("class_names") or self._resolve_class_names()
-        else:
-            probs = None
-            class_names = self._resolve_class_names()
-        if probs is None:
-            messagebox.showwarning("Missing Data", "Prediction probabilities not available.")
-            return
-        visualization.plot_prediction_distribution(probs, class_names, RESULTS_DIR / "prediction_distribution.png")
-        self._log("Prediction distribution plot saved.")
 
-    def _on_plot_prediction_overlay(self) -> None:
-        if not self.state.last_prediction or not self.state.last_prediction_image:
-            messagebox.showwarning("Missing Data", "No prediction results available.")
-            return
         try:
-            visualization.display_image_with_prediction(
-                self.state.last_prediction_image,
-                self.state.last_prediction if isinstance(self.state.last_prediction, dict) else {"predicted_class": self.state.last_prediction},
-                RESULTS_DIR / "prediction_overlay.png",
-            )
-            self._log("Prediction overlay saved.")
+            # Prepare data
+            if isinstance(prediction, dict):
+                probs = prediction.get("probabilities")
+                class_names = prediction.get("class_names") or self._resolve_class_names()
+            else:
+                probs = None
+                class_names = self._resolve_class_names()
+
+            # 1. Distribution Plot
+            if probs is not None:
+                visualization.plot_prediction_distribution(probs, class_names, RESULTS_DIR / "prediction_distribution.png")
+                self._log("Prediction distribution plot saved.")
+
+            # 2. Overlay Image
+            if self.state.last_prediction_image:
+                visualization.display_image_with_prediction(
+                    self.state.last_prediction_image,
+                    prediction if isinstance(prediction, dict) else {"predicted_class": prediction},
+                    RESULTS_DIR / "prediction_overlay.png",
+                )
+                self._log("Prediction overlay saved.")
+            
+            self._post(messagebox.showinfo, "Visualization", "Visualization (Single Image) saved to Results folder.")
+
         except Exception as exc:
-            logger.error("Failed to render prediction overlay: %s", exc)
-            messagebox.showerror("Error", f"Prediction overlay failed: {exc}")
+            logger.error("Failed to render visualization: %s", exc)
+            self._post(messagebox.showerror, "Error", f"Visualization failed: {exc}")
+
+    def _on_batch_visualization(self) -> None:
+        def task() -> None:
+            json_path = RESULTS_DIR / "batch_predictions.json"
+            if not json_path.exists():
+                self._post(messagebox.showwarning, "Missing Data", "No batch predictions found. Run Batch Predict first.")
+                return
+
+            try:
+                import json
+                import numpy as np
+                from sklearn.metrics import confusion_matrix
+                
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                
+                files = data.get("files", [])
+                preds = data.get("predictions", [])
+                
+                if not files or not preds:
+                    self._post(messagebox.showwarning, "Empty Data", "Batch prediction file is empty.")
+                    return
+                
+                y_true = []
+                y_pred = []
+                class_names = set()
+                
+                for fpath, pred in zip(files, preds):
+                    if "predicted_class" not in pred:
+                        continue
+                    p = Path(fpath)
+                    true_label = p.parent.name
+                    pred_label = pred["predicted_class"]
+                    y_true.append(true_label)
+                    y_pred.append(pred_label)
+                    class_names.add(true_label)
+                    class_names.add(pred_label)
+                
+                if not y_true:
+                    self._post(messagebox.showwarning, "No Valid Data", "No valid class labels found.")
+                    return
+                    
+                sorted_classes = sorted(list(class_names))
+                cm = confusion_matrix(y_true, y_pred, labels=sorted_classes)
+                
+                # Plot Confusion Matrix
+                visualization.plot_confusion_matrix(cm, sorted_classes, "Batch Results", RESULTS_DIR / "batch_confusion_matrix.png")
+                self._post(self._log, "Confusion Matrix saved.")
+                
+                # Plot Distribution
+                pred_counts = [y_pred.count(c) for c in sorted_classes]
+                visualization.plot_class_counts(pred_counts, sorted_classes, RESULTS_DIR / "batch_class_distribution.png")
+                self._post(self._log, "Class Counts saved.")
+                
+                # Calculate Accuracy
+                correct = sum(1 for t, p in zip(y_true, y_pred) if t == p)
+                acc = correct / len(y_true)
+                self._post(self._log, f"Overall Batch Accuracy: {acc:.2%}")
+                self._post(messagebox.showinfo, "Success", f"Batch visualization complete.\nAccuracy: {acc:.2%}")
+                
+            except Exception as e:
+                logger.error(f"Batch visualization failed: {e}")
+                self._post(messagebox.showerror, "Error", f"Failed to generate visualization: {e}")
+
+        self._run_task("Generating Batch Viz...", task)
 
 
 def launch_gui() -> None:

@@ -5,6 +5,9 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Sequence
+import json
+import os
+import sys
 
 import logging
 
@@ -313,11 +316,123 @@ def display_image_with_prediction(image_path: Path | str, prediction: Dict[str, 
     return out_path
 
 
+def plot_class_counts(counts: Sequence[int], class_names: Sequence[str], save_path: Path | str) -> Path:
+    """
+    Plot bar chart of class counts (e.g. prediction frequency).
+    """
+    _require_matplotlib()
+    create_directories()
+    
+    counts_arr = np.array(counts)
+    labels = list(class_names)
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.bar(labels, counts_arr, color="teal")
+    
+    ax.set_ylabel("Count")
+    ax.set_title("Class Prediction Counts")
+    
+    # Add count labels on top of bars
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+                f'{int(height)}',
+                ha='center', va='bottom')
+                
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+    
+    out_path = _ensure_dir(save_path)
+    fig.savefig(out_path, dpi=FIGURE_DPI)
+    if SHOW_PLOTS:
+        plt.show()
+    plt.close(fig)
+    logger.info("Saved class counts plot to %s", out_path)
+    return out_path
+
+
 __all__ = [
     "plot_training_history",
     "plot_confusion_matrix",
     "plot_model_comparison",
     "plot_prediction_distribution",
     "display_image_with_prediction",
+    "plot_class_counts",
 ]
 
+
+if __name__ == "__main__":
+    """
+    Command-line execution for batch prediction analysis.
+    Reads results/batch_predictions.json and generates visualization plots.
+    """
+    print("Running Visualization Analysis...")
+    
+    json_path = RESULTS_DIR / "batch_predictions.json"
+    if not json_path.exists():
+        print(f"Error: {json_path} not found. Please run batch prediction first.")
+        sys.exit(1)
+        
+    try:
+        from sklearn.metrics import confusion_matrix
+    except ImportError:
+        print("Error: scikit-learn is required for confusion matrix directly.")
+        sys.exit(1)
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+        
+    files = data.get("files", [])
+    preds = data.get("predictions", [])
+    
+    if not files or not preds or len(files) != len(preds):
+        print("Error: Invalid or empty prediction data.")
+        sys.exit(1)
+        
+    y_true = []
+    y_pred = []
+    class_names = set()
+    
+    valid_count = 0
+    
+    for fpath, pred in zip(files, preds):
+        if "predicted_class" not in pred:
+            continue
+            
+        # Infer true class from folder structure: .../class_name/file.jpg
+        p = Path(fpath)
+        true_label = p.parent.name
+        pred_label = pred["predicted_class"]
+        
+        y_true.append(true_label)
+        y_pred.append(pred_label)
+        
+        class_names.add(true_label)
+        class_names.add(pred_label)
+        valid_count += 1
+        
+    if valid_count == 0:
+        print("No valid predictions found to analyze.")
+        sys.exit(0)
+        
+    sorted_classes = sorted(list(class_names))
+    print(f"Analyzed {valid_count} samples across {len(sorted_classes)} classes.")
+    
+    # Generate Confusion Matrix
+    cm = confusion_matrix(y_true, y_pred, labels=sorted_classes)
+    
+    # Plot Confusion Matrix
+    cm_path = RESULTS_DIR / "batch_confusion_matrix.png"
+    plot_confusion_matrix(cm, sorted_classes, "Batch Predictions", cm_path)
+    print(f"Confusion Matrix saved to: {cm_path}")
+    
+    # Calculate Accuracy
+    correct = sum(1 for t, p in zip(y_true, y_pred) if t == p)
+    accuracy = correct / valid_count
+    print(f"\nOverall Accuracy: {accuracy:.2%}")
+    
+    # Generate Distribution Plot (Count of predicted classes)
+    pred_counts = [y_pred.count(c) for c in sorted_classes]
+    
+    plot_class_counts(pred_counts, sorted_classes, RESULTS_DIR / "batch_class_distribution.png")
+    print(f"Distribution Plot saved to: {RESULTS_DIR / 'batch_class_distribution.png'}")

@@ -7,8 +7,15 @@ Provides model loading, image preprocessing, single/batch prediction, and result
 import os
 import numpy as np
 from PIL import Image
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Tuple, Any, Optional
 from tensorflow import keras
+from config import TARGET_IMAGE_SIZE
+
+try:
+    from models.model_architecture import build_vgg16_model, build_resnet50_model, build_mobilenetv2_model
+    ARCH_AVAILABLE = True
+except ImportError:
+    ARCH_AVAILABLE = False
 
 # Optional progress bar
 try:
@@ -19,21 +26,110 @@ except ImportError:
 
 
 def load_model(model_name: str, weights_path: str) -> keras.Model:
-
     """Load trained Keras model."""
     if not os.path.exists(weights_path):
         raise FileNotFoundError(f"Weights file not found: {weights_path}")
     
     try:
+        # Standard load
         model = keras.models.load_model(weights_path)
         print(f"Successfully loaded {model_name}")
         return model
     except Exception as e:
-        raise Exception(f"Failed to load model: {str(e)}")
+        error_str = str(e)
+        if "batch_shape" in error_str or "DTypePolicy" in error_str or "Unknown dtype policy" in error_str or "InputLayer" in error_str:
+            print(f"[Warning] Version mismatch detected ({error_str}). Attempting compatibility fix...")
+            
+            # Compatibility patches for version mismatches
+            class CompatibleInputLayer(keras.layers.InputLayer):
+                def __init__(self, *args, **kwargs):
+                    if 'batch_shape' in kwargs and 'batch_input_shape' not in kwargs:
+                        kwargs['batch_input_shape'] = kwargs.pop('batch_shape')
+                    kwargs.pop('batch_shape', None)
+                    super().__init__(*args, **kwargs)
+
+            class MockDTypePolicy:
+                def __init__(self, name="float32", **kwargs):
+                    self._name = name
+                    self._compute_dtype = name
+                    self._variable_dtype = name
+
+                @property
+                def name(self):
+                    return self._name
+                
+                @property
+                def compute_dtype(self):
+                    return self._compute_dtype
+                
+                @property
+                def variable_dtype(self):
+                    return self._variable_dtype
+
+                @classmethod
+                def from_config(cls, config):
+                    if isinstance(config, dict):
+                        return cls(**config)
+                    return cls(name=str(config))
+                    
+                def get_config(self):
+                    return {"name": self._name}
+                
+                # Catch specific as_list calls if necessary
+                def __getattr__(self, name):
+                    if name == "as_list":
+                        return lambda: []
+                    raise AttributeError(f"'MockDTypePolicy' object has no attribute '{name}'")
+                
+                def __str__(self):
+                    return self._name
+                    
+                def __repr__(self):
+                    return f"<MockDTypePolicy: {self._name}>"
+
+            try:
+                # Attempt load with patches
+                model = keras.models.load_model(
+                    weights_path, 
+                    custom_objects={
+                        'InputLayer': CompatibleInputLayer,
+                        'DTypePolicy': MockDTypePolicy
+                    },
+                    compile=False
+                )
+                print(f"Successfully loaded {model_name} with compatibility patches")
+                return model
+            except Exception as e3:
+                # Fallback: Reconstruct model structure and load weights directly
+                if ARCH_AVAILABLE:
+                    try:
+                        print(f"[Info] Patch failed ({e3}). Switching to reconstruction strategy...")
+                        name_lower = model_name.lower()
+                        model_builder = None
+                        if "vgg" in name_lower: model_builder = build_vgg16_model
+                        elif "resnet" in name_lower: model_builder = build_resnet50_model
+                        elif "mobilenet" in name_lower: model_builder = build_mobilenetv2_model
+                        
+                        if model_builder:
+                            candidates = [2] + list(range(3, 21)) + [100, 1000]
+                            
+                            for n_classes in candidates:
+                                try:
+                                    temp_model = model_builder(num_classes=n_classes)
+                                    temp_model.load_weights(weights_path)
+                                    print(f"Successfully reconstructed {model_name} with {n_classes} classes")
+                                    return temp_model
+                                except Exception:
+                                    continue
+                    except Exception as e_recon:
+                        print(f"[Error] Reconstruction failed: {e_recon}")
+
+                raise Exception(f"Failed to load model (all strategies failed): {e3}")
+        else:
+            raise Exception(f"Failed to load model: {error_str}")
 
 
 def preprocess_input_image(image_path: str, target_size: Tuple[int, int] = (224, 224)) -> np.ndarray:
-
     """Preprocess single image: Load -> Resize -> Normalize."""
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image file not found: {image_path}")
@@ -62,7 +158,6 @@ def predict_single_image(
     class_names: List[str],
     top_k: int = 3
 ) -> Dict[str, Any]:
-
     """Predict class of single image."""
     # Preprocess image
     img_array = preprocess_input_image(image_path)
@@ -122,7 +217,6 @@ def predict_batch(
 
 
 def format_predictions(prediction_dict: Dict[str, Any]) -> str:
-
     """Format prediction results as readable string."""
     # Error case
     if 'error' in prediction_dict:
@@ -145,9 +239,3 @@ def format_predictions(prediction_dict: Dict[str, Any]) -> str:
 if __name__ == "__main__":
     print("Inference Module Test")
     print("\nModule loaded successfully!")
-    print("\nAvailable functions:")
-    print("  - load_model()")
-    print("  - preprocess_input_image()")
-    print("  - predict_single_image()")
-    print("  - predict_batch()")
-    print("  - format_predictions()")
