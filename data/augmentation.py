@@ -8,6 +8,7 @@ def get_train_augmentation():
     Configure training data augmentation settings.
     """
     # Note: rescaling is handled in preprocessing.py
+    # Reference: https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/ImageDataGenerator
     train_datagen = ImageDataGenerator(
         rotation_range=20,
         width_shift_range=0.2,

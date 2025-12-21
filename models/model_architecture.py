@@ -4,6 +4,8 @@ Functions to build and compile VGG16, ResNet50, and MobileNetV2 models for trans
 """
 
 import tensorflow as tf
+# Reference: https://keras.io/api/applications/
+# Transfer learning implementation adapted from Keras documentation
 from tensorflow.keras.applications import VGG16, ResNet50, MobileNetV2
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
 from tensorflow.keras.models import Model

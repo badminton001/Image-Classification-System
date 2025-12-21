@@ -1,6 +1,9 @@
 """Logging utilities."""
 from __future__ import annotations
 
+from __future__ import annotations
+
+# Reference: https://docs.python.org/3/library/logging.html
 import logging
 from logging import Logger
 from pathlib import Path
@@ -33,4 +36,3 @@ def setup_logger(name: str, log_file: str | Path = LOG_FILE) -> Logger:
 
 
 __all__ = ["setup_logger"]
-

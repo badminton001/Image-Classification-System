@@ -6,6 +6,7 @@ Provides model loading, image preprocessing, single/batch prediction, and result
 
 import os
 import numpy as np
+# Reference: https://pillow.readthedocs.io/en/stable/
 from PIL import Image
 from typing import List, Dict, Tuple, Any, Optional
 from tensorflow import keras

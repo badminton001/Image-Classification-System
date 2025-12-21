@@ -21,3 +21,8 @@
 2025-12-21 14:16:00,737 - INFO - utils.visualization - Saved confusion matrix plot to results\batch_confusion_matrix.png
 2025-12-21 14:16:00,801 - INFO - utils.visualization - Saved class counts plot to results\batch_class_distribution.png
 2025-12-21 14:16:27,581 - INFO - ImageClassifier - Program exited.
+2025-12-21 14:41:13,167 - INFO - ImageClassifier - Program started.
+2025-12-21 14:41:13,169 - INFO - ImageClassifier - Dataset path available: C:\Users\Y\Desktop\Image-Classification-System\data_samples
+2025-12-21 15:18:16,510 - INFO - utils.visualization - Saved confusion matrix plot to results\batch_confusion_matrix.png
+2025-12-21 15:18:16,571 - INFO - utils.visualization - Saved class counts plot to results\batch_class_distribution.png
+2025-12-21 15:18:31,299 - INFO - ImageClassifier - Program exited.

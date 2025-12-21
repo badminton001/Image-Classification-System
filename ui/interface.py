@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 import tkinter as tk
+# Reference: https://docs.python.org/3/library/tkinter.html
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from config import DATASET_PATH, RESULTS_DIR, TARGET_IMAGE_SIZE, TOP_K, WEIGHTS_DIR
@@ -480,6 +481,7 @@ class ImageClassifierApp:
             try:
                 import json
                 import numpy as np
+                # Reference: https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
                 from sklearn.metrics import confusion_matrix
                 
                 with open(json_path, "r", encoding="utf-8") as f:

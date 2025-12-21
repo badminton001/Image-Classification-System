@@ -21,6 +21,8 @@ def split_dataset(image_paths, labels, test_size=0.15, val_size=0.15):
     Split dataset into training, validation, and test sets.
     Ensures stratified sampling to maintain class distribution.
     """
+    # Reference: https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html
+    # Used for stratified splitting of the dataset
     X_train_val, X_test, y_train_val, y_test = train_test_split(
         image_paths, labels, test_size=test_size, stratify=labels, random_state=42
     )

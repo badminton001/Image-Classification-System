@@ -18,6 +18,7 @@ try:
     import matplotlib
     
     matplotlib.use("Agg")  # Force non-interactive backend
+    # Reference: https://matplotlib.org/stable/tutorials/index.html
     import matplotlib.pyplot as plt
     
     # Force non-interactive mode
