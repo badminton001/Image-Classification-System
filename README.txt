@@ -2,35 +2,40 @@ Image Classification System
 ===========================
 Scene Recognition with Deep Learning (Intel Image Classification)
 
-This project is a comprehensive Python-based system for classifying images into 6 scene categories: buildings, forest, glacier, mountain, sea, and street. Result of a group project for [Your Course Name], [Year].
+This project is a comprehensive Python-based system for classifying images into 6 scene categories: buildings, forest, glacier, mountain, sea, and street.
 
-Requirements (User Perspective)
--------------------------------
-1. Minimum Hardware: 
-   - CPU: Intel Core i5 or equivalent.
-   - RAM: 8GB minimum recommended.
-   - GPU: Optional but recommended for faster training (NVIDIA GTX 1050 or higher).
-
-2. Software:
-   - OS: Windows 10/11, macOS, or Linux.
+Requirements
+------------
+1. Software Environment:
    - Python 3.8 or higher installed and added to PATH.
    - Key Libraries: TensorFlow, Keras, NumPy, Pillow, Matplotlib, Scikit-learn.
    - See requirements.txt for specific versions.
 
-How the Program Works
----------------------
+2. Dataset:
+   - The system expects the 'Intel Image Classification' dataset.
+   - Ensure data is placed in the 'data_samples/' directory or configured path.
+
+User Manual
+-----------
 1. Launch the Application:
    - Run `python main.py` in your terminal.
    - A graphical interface (GUI) will open.
 
 2. Load a Model:
-   - Click "Browse" next to Weights file to select a trained model (.h5) from the 'weights/' folder.
-   - Click "Load Model". The system supports MobileNetV2, VGG16, and ResNet50.
+   - Check the "Weights file" dropdown in the Prediction section.
+   - If empty, click "Browse" to select a trained model (.h5) from the 'weights/' folder.
+   - Click "Load Model" to initialize the inference engine. The system supports MobileNetV2, VGG16, and ResNet50.
 
-3. Make Predictions:
-   - Single Image: Click "Browse" inside the Prediction frame to select an image file (.jpg, .png). Click "Predict Image" to see the classification result.
-   - Visualization: Click "Visualization (Single Image)" to generate probability charts and overlay images in the 'results/' folder.
-   - Batch Prediction: Select a folder of images to process them all at once. The system will save a JSON report and generate a confusion matrix.
+3. Make Predictions (Single Image):
+   - Click "Browse" inside the Prediction frame to select an image file (.jpg, .png).
+   - Enter a value for "Top-K" (default is 3) to see the top predicted classes.
+   - Click "Predict Image". The result and confidence score will appear in the log.
+   - Click "Visualization (Single Image)" to generate a probability bar chart and an overlay image in the 'results/' folder.
+
+4. Batch Prediction (Multiple Images):
+   - Click "Browse" next to "Batch folder" to select a directory containing test images.
+   - Click "Batch Predict". The system will process all images and save predictions to 'results/batch_predictions.json'.
+   - Click "Batch Visualization (Batch Results)" to generate a Confusion Matrix and Class Distribution plot.
 
 Project Structure
 -----------------
@@ -52,4 +57,3 @@ Credits & Attribution
 - Dataset: Intel Image Classification (Kaggle)
 - Deep Learning Framework: TensorFlow & Keras
 - GUI Framework: Tkinter
-- Concepts adapted from TensorFlow official tutorials and Keras documentation.
