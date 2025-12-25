@@ -26,3 +26,38 @@
 2025-12-21 15:18:16,510 - INFO - utils.visualization - Saved confusion matrix plot to results\batch_confusion_matrix.png
 2025-12-21 15:18:16,571 - INFO - utils.visualization - Saved class counts plot to results\batch_class_distribution.png
 2025-12-21 15:18:31,299 - INFO - ImageClassifier - Program exited.
+2025-12-22 23:14:52,312 - INFO - ImageClassifier - Program started.
+2025-12-22 23:14:52,323 - INFO - ImageClassifier - Dataset path available: C:\Users\Y\Desktop\Image-Classification-System\data_samples
+2025-12-22 23:18:31,306 - INFO - ImageClassifier - Program exited.
+2025-12-22 23:18:41,702 - INFO - ImageClassifier - Program started.
+2025-12-22 23:18:41,712 - INFO - ImageClassifier - Dataset path available: C:\Users\Y\Desktop\Image-Classification-System\data_samples
+2025-12-22 23:21:49,341 - INFO - ImageClassifier - Program exited.
+2025-12-22 23:22:17,117 - INFO - ImageClassifier - Program started.
+2025-12-22 23:22:17,122 - INFO - ImageClassifier - Dataset path available: C:\Users\Y\Desktop\Image-Classification-System\data_samples
+2025-12-22 23:31:11,755 - INFO - utils.visualization - Starting plot_prediction_distribution...
+2025-12-22 23:31:11,757 - INFO - utils.visualization - Converting predictions to numpy array...
+2025-12-22 23:31:11,758 - INFO - utils.visualization - Predictions shape: (6,), dtype: float32
+2025-12-22 23:31:11,758 - INFO - utils.visualization - Creating matplotlib figure...
+2025-12-22 23:31:11,854 - INFO - utils.visualization - Saving figure to results\prediction_distribution.png...
+2025-12-22 23:31:11,908 - INFO - utils.visualization - Figure saved successfully
+2025-12-22 23:31:11,910 - INFO - utils.visualization - Saved prediction distribution plot to results\prediction_distribution.png
+2025-12-22 23:31:11,991 - INFO - utils.visualization - Saved image with prediction overlay to results\prediction_overlay.png
+2025-12-22 23:31:15,411 - INFO - utils.visualization - Saved confusion matrix plot to results\batch_confusion_matrix.png
+2025-12-22 23:31:15,505 - INFO - utils.visualization - Saved class counts plot to results\batch_class_distribution.png
+2025-12-22 23:32:26,889 - INFO - ImageClassifier - Program exited.
+2025-12-22 23:32:55,048 - INFO - ImageClassifier - Program started.
+2025-12-22 23:32:55,051 - INFO - ImageClassifier - Dataset path available: C:\Users\Y\Desktop\Image-Classification-System\data_samples
+2025-12-22 23:34:33,611 - INFO - ImageClassifier - Program exited.
+2025-12-22 23:34:39,849 - INFO - ImageClassifier - Program started.
+2025-12-22 23:34:39,849 - INFO - ImageClassifier - Dataset path available: C:\Users\Y\Desktop\Image-Classification-System\data_samples
+2025-12-22 23:43:52,555 - INFO - utils.visualization - Starting plot_prediction_distribution...
+2025-12-22 23:43:52,557 - INFO - utils.visualization - Converting predictions to numpy array...
+2025-12-22 23:43:52,557 - INFO - utils.visualization - Predictions shape: (6,), dtype: float32
+2025-12-22 23:43:52,558 - INFO - utils.visualization - Creating matplotlib figure...
+2025-12-22 23:43:52,642 - INFO - utils.visualization - Saving figure to results\prediction_distribution.png...
+2025-12-22 23:43:52,694 - INFO - utils.visualization - Figure saved successfully
+2025-12-22 23:43:52,695 - INFO - utils.visualization - Saved prediction distribution plot to results\prediction_distribution.png
+2025-12-22 23:43:52,777 - INFO - utils.visualization - Saved image with prediction overlay to results\prediction_overlay.png
+2025-12-22 23:43:56,383 - INFO - utils.visualization - Saved confusion matrix plot to results\batch_confusion_matrix.png
+2025-12-22 23:43:56,475 - INFO - utils.visualization - Saved class counts plot to results\batch_class_distribution.png
+2025-12-23 00:30:36,074 - INFO - ImageClassifier - Program exited.
